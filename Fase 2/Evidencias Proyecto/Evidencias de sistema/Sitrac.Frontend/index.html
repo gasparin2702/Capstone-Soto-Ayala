@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SITRAC-ANCI Consola</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<noscript>
+  <div style="padding:20px;background:#fff5f5;color:#c4161c;font-family:sans-serif">
+    <b>SITRAC-ANCI requiere JavaScript.</b> Actívalo en tu navegador para ver la consola operativa.
+  </div>
+</noscript>
+
+<div class="top">
+  <div class="brand">
+    <span class="mark"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg></span>
+    <div>SITRAC · ANCI<small>Ultraport · Ley N° 21.663</small></div>
+  </div>
+  <nav class="nav" role="tablist" aria-label="Vistas de la consola">
+    <button role="tab" data-go="dash" aria-selected="true">Mi cola</button>
+    <button role="tab" data-go="det" aria-selected="false">Detalle del caso</button>
+    <button role="tab" data-go="guia" aria-selected="false">Guía de diseño</button>
+  </nav>
+  <div class="top-r">
+    <div class="engine" title="Recarga la cola cada 60 s desde la API">
+      <span class="dot"></span>
+      <span><b>Auto-refresh</b> · próxima actualización en <span class="mono" id="nextEval">00:00</span></span>
+    </div>
+    <div class="clock mono" id="clock"></div>
+    <div class="me"><span class="avatar">CF</span><span>C. Fuentes</span></div>
+  </div>
+</div>
+
+<main>
+<!-- ======================= COLA ======================= -->
+<section class="view" id="v-dash">
+  <div class="page-h">
+    <div><div class="eyebrow">Ultraport · Centro de operaciones</div><h1>Hola, C. Fuentes</h1><p id="greet"></p></div>
+    <button class="pbtn" data-go="det"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Revisar el caso más urgente</button>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="panel">
+    <div class="panel-h">
+      <div><h2>Casos por atender</h2><div style="font-size:13px;color:var(--text-3)">Ordenados por el próximo plazo legal que vence</div></div>
+      <div class="filters" id="filters">
+        <button aria-pressed="true" data-f="all">Todos</button>
+        <button aria-pressed="false" data-f="OIV">OIV</button>
+        <button aria-pressed="false" data-f="Esencial">Esencial</button>
+        <button aria-pressed="false" data-f="crit">Urgentes y vencidos</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Ticket</th><th>Origen</th><th>Clasificación</th><th>Gravedad</th><th>Estado actual</th><th>Próximo plazo legal</th></tr></thead>
+      <tbody id="triage"></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ======================= DETALLE ======================= -->
+<section class="view" id="v-det" hidden>
+  <div class="crumb-row">
+    <div class="crumb"><a data-go="dash">Mi cola</a><span>›</span><span id="crumb-id" style="color:var(--text)">—</span></div>
+    <div class="pager">
+      <button class="obtn" data-pg="prev" aria-label="Caso anterior"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>Anterior</button>
+      <span>Caso <b id="pager-pos">1</b> de <b id="pager-total">—</b></span>
+      <button class="obtn" data-pg="next" aria-label="Caso siguiente">Siguiente<svg class="i" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </div>
+  <div class="card head" id="head"></div>
+  <div id="stepper" class="stepper card" aria-label="Ciclo de vida del incidente"></div>
+  <div class="layout">
+    <div class="main-col">
+      <div class="panel" id="slaPanel"></div>
+      <div class="panel">
+        <div class="sec-h">
+          <h2><svg class="i" viewBox="0 0 24 24"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>Historial del caso</h2>
+          <div class="filters" id="tlf">
+            <button aria-pressed="true" data-a="all">Todo</button>
+            <button aria-pressed="false" data-a="ana">Analistas</button>
+            <button aria-pressed="false" data-a="sys">Acciones automáticas</button>
+          </div>
+        </div>
+        <div style="padding:6px 20px 0;font-size:13px;color:var(--text-3);display:flex;gap:6px;align-items:center">
+          <svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+          Es un registro legal: no se puede editar ni borrar.
+        </div>
+        <ol class="tl" id="tl"></ol>
+      </div>
+    </div>
+    <aside class="rail">
+      <div class="panel">
+        <h2>Qué quieres hacer</h2>
+        <p class="sub">Cada acción queda firmada con tu nombre y pide un comentario.</p>
+        <div class="acts" id="acts"></div>
+        <div class="hint" id="hint"></div>
+      </div>
+      <div class="panel">
+        <h2>Casos parecidos</h2>
+        <p class="sub">Para decidir con lo que ya hizo el equipo. Datos de ejemplo.</p>
+        <ul class="sim" id="sim"></ul>
+      </div>
+      <div class="panel">
+        <h2 style="margin-bottom:12px">Datos del caso</h2>
+        <dl class="kv" id="kv"></dl>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ======================= GUÍA ======================= -->
+<section class="view" id="v-guia" hidden>
+  <div class="page-h"><div><div class="eyebrow">Especificación</div><h1>Guía de diseño SITRAC-ANCI</h1></div></div>
+  <div class="guide">
+    <div class="panel">
+      <h2>Pensado para revisar casos en serie</h2>
+      <ul>
+        <li><b>Mi cola</b> abre con un saludo y una frase que dice cuántos casos necesitan atención ahora.</li>
+        <li>El botón «Revisar el caso más urgente» lleva directo al primer caso. Dentro del caso, Anterior y Siguiente mantienen el ritmo.</li>
+        <li>Las acciones tienen atajo de teclado (<kbd>A</kbd> aviso, <kbd>I</kbd> informe, <kbd>C</kbd> cerrar).</li>
+        <li>«Casos parecidos» muestra qué decidió el equipo antes con el mismo sistema o vector.</li>
+        <li>Lenguaje directo: «Venció hace 16 h», «El sistema actuó porque…».</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>Layout del caso</h2>
+      <div class="wire">
+        <div class="w2"><b>Ficha</b> · ID, título, gravedad, clasificación, estado y datos clave</div>
+        <div class="w2"><b>Ciclo de vida</b> · En triage, Aviso enviado, Preliminar enviado, Cerrado</div>
+        <div><b>Columna principal</b><br>1. Plazos legales: 3 tarjetas con cuenta regresiva y barra<br>2. Historial del caso, filtrable</div>
+        <div><b>Riel derecho (fijo)</b><br>Acciones, casos parecidos, datos del caso</div>
+      </div>
+      <p>Bajo 1100 px el riel pasa debajo de la columna principal.</p>
+    </div>
+    <div class="panel">
+      <h2>Paleta</h2>
+      <div class="sw">
+        <div><i style="background:#f2f3f3"></i><span><b>Fondo · #F2F3F3</b>Gris claro</span></div>
+        <div><i style="background:#0f1b2a"></i><span><b>Navegación · #0F1B2A</b>Barra superior</span></div>
+        <div><i style="background:#0972d3"></i><span><b>Acción · #0972D3</b>Botones y foco</span></div>
+        <div><i style="background:#2ea043"></i><span><b>Holgura · #2EA043</b>Plazo con margen</span></div>
+        <div><i style="background:#e9a100"></i><span><b>Atención · #E9A100</b>Plazo por vencer</span></div>
+        <div><i style="background:#d91515"></i><span><b>Incumplido · #D91515</b>Plazo vencido</span></div>
+        <div><i style="background:#3d4f66"></i><span><b>Automático · #3D4F66</b>Acciones del sistema</span></div>
+      </div>
+      <p>La gravedad usa su propia escala (gris, azul, naranja, rojo oscuro) con un medidor de 4 barras.</p>
+    </div>
+    <div class="panel">
+      <h2>Reglas de urgencia</h2>
+      <ul>
+        <li><b class="c-ok">Holgura</b>: queda más del 33 % de la ventana y más de 1 hora.</li>
+        <li><b class="c-warn">Atención</b>: queda 33 % o menos de la ventana, o menos de 1 hora.</li>
+        <li><b class="c-crit">Incumplido</b>: plazo vencido, o informe enviado fuera de plazo.</li>
+        <li>El color siempre va con ícono y texto del estado.</li>
+        <li>Acciones automáticas: ícono de engranaje, tarjeta gris azulada y explicación del motivo. Acciones de analistas: iniciales sobre azul.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>Seguridad e integridad de auditoría</h2>
+      <ul>
+        <li>Todo modal de acción manual exige un comentario de al menos 15 caracteres; el botón queda deshabilitado hasta cumplirlo.</li>
+        <li>El modal avisa quién firma y que el registro no se puede editar.</li>
+        <li>Cerrar Ticket está bloqueado hasta registrar el Informe Final.</li>
+        <li>Las fechas límite se muestran como sellos fijos del snapshot, nunca editables.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>Notas técnicas</h2>
+      <ul>
+        <li>Estados oficiales de <code>TbAnciTipoEstadoIncidente</code>: <b>1</b> = En triage, <b>2</b> = Aviso enviado, <b>3</b> = Preliminar enviado, <b>4</b> = Cerrado.</li>
+        <li>Ventanas SLA: OIV 3 h / 24 h / 15 d. Esencial 3 h / 72 h / 15 d.</li>
+        <li>La cola se auto-refresca cada 60 s desde <code>GET /api/incidentes</code>.</li>
+        <li>El detalle e historial consumen <code>GET /api/incidentes/{id}</code> y <code>GET /api/incidentes/{id}/historial</code>.</li>
+        <li>El motor automático (<code>LifecycleAdvancerService</code>) evalúa y avanza estados cada 1 min.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</main>
+
+<div class="ov" id="ov" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" id="modal"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>

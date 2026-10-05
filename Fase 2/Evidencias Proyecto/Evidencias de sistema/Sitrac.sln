@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sitrac.Server", "Sitrac.Server\Sitrac.Server.csproj", "{FC74FDB0-41CD-46E9-827A-F2FBF5F514D6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sitrac.Service", "Sitrac.Service\Sitrac.Service.csproj", "{E9249CB8-D5D9-446A-AAB3-4A62C52F591C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sitrac.Repository", "Sitrac.Repository\Sitrac.Repository.csproj", "{6AB80B2D-B735-470B-BD6E-0B8C5F79C252}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sitrac.DataAccess", "Sitrac.DataAccess\Sitrac.DataAccess.csproj", "{48CE06F8-B26D-4D4A-8F80-EC4DE33D8E29}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sitrac.DbMigration", "Sitrac.DbMigration\Sitrac.DbMigration.csproj", "{42524621-B892-44A4-89F9-58EF2E0A489D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FC74FDB0-41CD-46E9-827A-F2FBF5F514D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC74FDB0-41CD-46E9-827A-F2FBF5F514D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC74FDB0-41CD-46E9-827A-F2FBF5F514D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC74FDB0-41CD-46E9-827A-F2FBF5F514D6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E9249CB8-D5D9-446A-AAB3-4A62C52F591C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E9249CB8-D5D9-446A-AAB3-4A62C52F591C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E9249CB8-D5D9-446A-AAB3-4A62C52F591C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E9249CB8-D5D9-446A-AAB3-4A62C52F591C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6AB80B2D-B735-470B-BD6E-0B8C5F79C252}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AB80B2D-B735-470B-BD6E-0B8C5F79C252}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6AB80B2D-B735-470B-BD6E-0B8C5F79C252}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6AB80B2D-B735-470B-BD6E-0B8C5F79C252}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48CE06F8-B26D-4D4A-8F80-EC4DE33D8E29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48CE06F8-B26D-4D4A-8F80-EC4DE33D8E29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48CE06F8-B26D-4D4A-8F80-EC4DE33D8E29}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48CE06F8-B26D-4D4A-8F80-EC4DE33D8E29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{42524621-B892-44A4-89F9-58EF2E0A489D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{42524621-B892-44A4-89F9-58EF2E0A489D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{42524621-B892-44A4-89F9-58EF2E0A489D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{42524621-B892-44A4-89F9-58EF2E0A489D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

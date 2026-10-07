@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Sitrac.Repository.Interfaces;
 using Sitrac.Repository.Models;
+using Sitrac.Service.Configuration;
 using Sitrac.Service.Dtos;
 using Sitrac.Service.Interfaces;
 
@@ -12,11 +15,22 @@ namespace Sitrac.Service
     {
         private readonly IIncidenteRepository _incidenteRepository;
         private readonly ISlaRepository _slaRepository;
+        private readonly INotificacionService _notificacionService;
+        private readonly SmtpSettings _smtpSettings;
+        private readonly ILogger<IncidenteService> _logger;
 
-        public IncidenteService(IIncidenteRepository incidenteRepository, ISlaRepository slaRepository)
+        public IncidenteService(
+            IIncidenteRepository incidenteRepository,
+            ISlaRepository slaRepository,
+            INotificacionService notificacionService,
+            IOptions<SmtpSettings> smtpSettings,
+            ILogger<IncidenteService> logger)
         {
             _incidenteRepository = incidenteRepository;
             _slaRepository = slaRepository;
+            _notificacionService = notificacionService;
+            _smtpSettings = smtpSettings.Value;
+            _logger = logger;
         }
 
         public async Task<long> RegistrarIncidenteInvgateAsync(CrearIncidenteRequest request)
@@ -28,15 +42,15 @@ namespace Sitrac.Service
                 CodTipoClasificacionEmpresa = request.CodTipoClasificacionEmpresa,
                 CodTipoGravedad = request.CodTipoGravedad,
                 DescripcionSistemaAfectado = request.DescripcionSistemaAfectado,
-                CodTipoCanalEntrada = 1, 
+                CodTipoCanalEntrada = 1,
                 IndEsIncidenteReal = true,
-                CodTipoDatosPersonales = 3, 
-                CodTipoEstadoIncidente = 1  
+                CodTipoDatosPersonales = 3,
+                CodTipoEstadoIncidente = 1
             };
 
             var idGenerado = await _incidenteRepository.InsertarAsync(nuevoIncidente);
             var parametrosSla = await _slaRepository.ObtenerParametrosPorEmpresaAsync(request.CodTipoClasificacionEmpresa);
-            
+
             if (parametrosSla != null)
             {
                 var plazos = new AnciIncidentePlazoSla
@@ -48,11 +62,42 @@ namespace Sitrac.Service
                     FechaLimiteInformePreliminar = request.FechaTomaConocimiento.AddHours(parametrosSla.HorasInformePreliminar),
                     FechaLimiteInformeFinal = request.FechaTomaConocimiento.AddDays(parametrosSla.DiasInformeFinal)
                 };
-
                 await _slaRepository.InsertarPlazosAsync(plazos);
             }
 
+            await IntentarNotificarAsync(idGenerado, request, parametrosSla?.HorasAvisoTemprano ?? 3);
+
             return idGenerado;
+        }
+
+        private async Task IntentarNotificarAsync(long idIncidente, CrearIncidenteRequest request, int horasSla)
+        {
+            var destinatario = _smtpSettings.DestinatarioDemo;
+            if (string.IsNullOrWhiteSpace(destinatario))
+            {
+                _logger.LogInformation(
+                    "[IncidenteService] Sin destinatario configurado. Omitiendo notificación para {Ticket}",
+                    request.CodigoTicketInvgate);
+                return;
+            }
+
+            try
+            {
+                var resultado = await _notificacionService.EnviarAlertaNuevoIncidenteAsync(
+                    destinatario,
+                    request.CodigoTicketInvgate ?? $"INC-{idIncidente}",
+                    request.DescripcionSistemaAfectado ?? "No especificado",
+                    horasSla);
+
+                if (!resultado.Exito)
+                    _logger.LogWarning("[IncidenteService] Alerta no enviada para {Ticket}: {Error}",
+                        request.CodigoTicketInvgate, resultado.MensajeError);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[IncidenteService] Error notificando {Ticket}. Incidente guardado igual.",
+                    request.CodigoTicketInvgate);
+            }
         }
 
         public async Task ProcesarCicloDeVidaAsync()
@@ -87,31 +132,24 @@ namespace Sitrac.Service
                     {
                         IdIncidente = inc.IdIncidente,
                         CodigoTicketInvgate = inc.CodigoTicketInvgate,
-                        IdTipoAmbitoCambio = 1, 
+                        IdTipoAmbitoCambio = 1,
                         IdTipoEstadoIncidenteAnterior = inc.CodTipoEstadoIncidente,
                         IdTipoEstadoIncidenteNuevo = nuevoEstado,
-                        IdResponsableCambia = 1, 
+                        IdResponsableCambia = 1,
                         Comentario = comentarioCambio
                     };
-
                     await _incidenteRepository.AvanzarEstadoConHistorialAsync(inc.IdIncidente, nuevoEstado, historial);
                 }
             }
         }
 
         public async Task<IEnumerable<IncidenteResumen>> ObtenerIncidentesActivosAsync()
-        {
-            return await _incidenteRepository.ObtenerActivosResumenAsync();
-        }
+            => await _incidenteRepository.ObtenerActivosResumenAsync();
 
         public async Task<IncidenteDetalle?> ObtenerDetalleIncidenteAsync(long idIncidente)
-        {
-            return await _incidenteRepository.ObtenerDetallePorIdAsync(idIncidente);
-        }
+            => await _incidenteRepository.ObtenerDetallePorIdAsync(idIncidente);
 
         public async Task<IEnumerable<EventoHistorialResumen>> ObtenerHistorialIncidenteAsync(long idIncidente)
-        {
-            return await _incidenteRepository.ObtenerHistorialAsync(idIncidente);
-        }
+            => await _incidenteRepository.ObtenerHistorialAsync(idIncidente);
     }
 }

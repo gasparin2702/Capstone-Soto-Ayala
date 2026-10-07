@@ -482,3 +482,19 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# SITRAC-ANCI — Credenciales locales y archivos de configuración sensibles
+# Archivos de configuración local de ASP.NET Core
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+**/appsettings.*.local.json
+**/appsettings.secrets.json
+**/*.secrets.json
+
+# Variables de entorno y secretos locales
+**/.env
+**/.env*.local
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local

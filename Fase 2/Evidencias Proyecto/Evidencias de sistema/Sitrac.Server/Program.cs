@@ -3,6 +3,7 @@ using Sitrac.DataAccess;
 using Sitrac.Repository;
 using Sitrac.Repository.Interfaces;
 using Sitrac.Service;
+using Sitrac.Service.Configuration;
 using Sitrac.Service.Interfaces;
 using EvolveDb;
 
@@ -11,27 +12,33 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddJsonFile($"appsettings-{builder.Environment.EnvironmentName}.json", optional: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
     .AddEnvironmentVariables();
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
+}
+
+builder.Services.Configure<SmtpSettings>(
+    builder.Configuration.GetSection(SmtpSettings.SectionName));
 
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IIncidenteRepository, IncidenteRepository>();
 builder.Services.AddScoped<ISlaRepository, SlaRepository>();
 builder.Services.AddScoped<IIncidenteService, IncidenteService>();
+builder.Services.AddScoped<INotificacionService, NotificacionService>();
 
-// Registra el motor de ciclo de vida
 builder.Services.AddHostedService<LifecycleAdvancerService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ===== NUEVO: registrar CORS =====
 builder.Services.AddCors();
 
 var app = builder.Build();
 
-// ===== NUEVO: middleware CORS (antes de Evolve) =====
 app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
 EjecutarMigracionesEvolve(app.Configuration);

@@ -4,12 +4,37 @@
   --bg:#f2f3f3; --card:#ffffff; --line:#d5dbdb; --line-2:#e9ebed; --hover:#f4f7fb;
   --text:#0f141a; --text-2:#414d5c; --text-3:#6b7785;
   --nav:#0f1b2a; --nav-2:#1b2a3d;
-  --primary:#0972d3; --primary-d:#033160; --primary-bg:#f0f8ff;
-  --ok:#037f0c; --ok-bg:#f2fcf3; --ok-bar:#2ea043;
-  --warn:#855900; --warn-bg:#fffce9; --warn-bar:#e9a100;
-  --crit:#c4161c; --crit-bg:#fff5f5; --crit-bar:#d91515;
-  --fg:var(--text);--fg-2:var(--text-2);--fg-3:var(--text-3);--sys:#3d4f66; --sys-bg:#eef1f6;
-  --g1:#6b7785; --g2:#0972d3; --g3:#b25a00; --g4:#c4161c;
+
+  /* === Cromática institucional Ultraport === */
+  --primary:#5862AA;          /* Azul violeta corporativo */
+  --primary-d:#3F4885;        /* Azul violeta oscuro (hover) */
+  --primary-bg:#EEF0F8;       /* Fondo suave del primario */
+
+  --ok:#037C5A;               /* Verde corporativo oscuro (texto) */
+  --ok-bg:#E5F7F1;            /* Fondo verde muy suave */
+  --ok-bar:#00B482;           /* Verde corporativo (barras) */
+
+  --warn:#8F7D00;             /* Amarillo corporativo oscuro (texto) */
+  --warn-bg:#FFFBE5;          /* Fondo amarillo muy suave */
+  --warn-bar:#DFC500;         /* Amarillo corporativo (barras) */
+
+  --crit:#B30023;             /* Rojo corporativo oscuro (texto) */
+  --crit-bg:#FFE5EA;          /* Fondo rojo muy suave */
+  --crit-bar:#E4002B;         /* Rojo corporativo (barras) */
+
+  --alta:#F58220;             /* Naranja corporativo (gravedad Alta) */
+  --info:#008890;             /* Teal corporativo (info/secundario) */
+  --info-bg:#E5F4F4;          /* Fondo teal suave */
+
+  --fg:var(--text);--fg-2:var(--text-2);--fg-3:var(--text-3);
+  --sys:#3d4f66; --sys-bg:#eef1f6;
+
+  /* Escala de gravedad corporativa */
+  --g1:#6b7785;               /* Bajo: gris */
+  --g2:#5862AA;               /* Medio: azul violeta */
+  --g3:#F58220;               /* Alto: naranja */
+  --g4:#E4002B;               /* Crítico: rojo */
+
   --font:'Roboto','Helvetica Neue',Arial,sans-serif;
   --mono:'Roboto Mono',ui-monospace,Menlo,Consolas,monospace;
   color-scheme:light;
@@ -27,7 +52,7 @@ h1,h2,h3{margin:0;font-weight:500}
 /* ---------- barra superior ---------- */
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding:8px 16px;background:var(--nav);color:#fff}
 .brand{display:flex;align-items:center;gap:10px;font-weight:500;font-size:16px}
-.brand .mark{width:30px;height:30px;border-radius:8px;background:var(--primary);display:grid;place-items:center;color:#fff;font-size:17px}
+.brand .mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg, var(--primary) 0%, var(--info) 100%);display:grid;place-items:center;color:#fff;font-size:17px}
 .brand small{display:block;color:#a9b6c6;font-weight:400;font-size:11px;margin-top:-2px}
 .nav{display:flex;gap:2px;order:3;width:100%}
 .nav button{background:none;border:0;padding:8px 12px;border-radius:6px;color:#c9d3df;cursor:pointer;font-size:14px}
@@ -62,7 +87,9 @@ main{padding:20px 16px 60px;max-width:1440px;margin:0 auto}
 .chip.warn{color:var(--warn);background:var(--warn-bg);border-color:#ecd48b}
 .chip.crit{color:var(--crit);background:var(--crit-bg);border-color:#f2b8ba}
 .chip.sys{color:var(--sys);background:var(--sys-bg);border-color:#cfd7e3}
-.chip.ana{color:var(--primary);background:var(--primary-bg);border-color:#b9d9f5}
+.chip.ana{color:var(--primary);background:var(--primary-bg);border-color:#C5CAE9}
+.chip.info{color:var(--info);background:var(--info-bg);border-color:#B2DEDE}
+.chip.high{color:var(--alta);background:#FFF3E5;border-color:#FCD5AB}
 .sev{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500}
 .pips{display:inline-flex;gap:2px;align-items:flex-end}
 .pips i{width:4px;border-radius:1px;background:var(--line)}
@@ -318,4 +345,25 @@ kbd{font:500 11px var(--mono);border:1px solid var(--line);border-bottom-width:2
 }
 .search-wrap #search-clear[hidden] {
   display: none;
+}
+/* Fila activa (caso abierto en el detalle) */
+tbody tr.is-active { background: var(--primary-bg); box-shadow: inset 3px 0 0 var(--primary); }
+tbody tr.is-active:hover { background: var(--primary-bg); }
+/* ---------- chips de prioridad ---------- */
+.chip.pri-crit {
+  color: #B30023;
+  background: #FFE5EA;
+  border-color: #F2B8BA;
+  font-weight: 600;
+}
+.chip.pri-warn {
+  color: #8F7D00;
+  background: #FFFBE5;
+  border-color: #ECD48B;
+  font-weight: 600;
+}
+.chip.pri-ok {
+  color: var(--text-2);
+  background: #fff;
+  border-color: var(--line);
 }

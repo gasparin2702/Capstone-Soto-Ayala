@@ -11,7 +11,7 @@
 <body>
 
 <noscript>
-  <div style="padding:20px;background:#fff5f5;color:#c4161c;font-family:sans-serif">
+  <div style="padding:20px;background:#FFE5EA;color:#B30023;font-family:sans-serif">
     <b>SITRAC-ANCI requiere JavaScript.</b> Actívalo en tu navegador para ver la consola operativa.
   </div>
 </noscript>
@@ -62,7 +62,7 @@
       </div>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th>Ticket</th><th>Origen</th><th>Clasificación</th><th>Gravedad</th><th>Estado actual</th><th>Próximo plazo legal</th></tr></thead>
+      <thead><tr><th>Ticket</th><th>Prioridad</th><th>Origen</th><th>Clasificación</th><th>Gravedad</th><th>Estado actual</th><th>Próximo plazo legal</th></tr></thead>
       <tbody id="triage"></tbody>
     </table></div>
   </div>
@@ -127,12 +127,13 @@
       <h2>Pensado para revisar casos en serie</h2>
       <ul>
         <li><b>Mi cola</b> abre con un saludo y una frase que dice cuántos casos necesitan atención ahora.</li>
-        <li>El botón «Revisar el caso más urgente» lleva directo al primer caso. Dentro del caso, Anterior y Siguiente mantienen el ritmo.</li>
+        <li>El botón «Revisar el caso más urgente» lleva directo al caso de mayor prioridad. Dentro del caso, Anterior y Siguiente mantienen el ritmo.</li>
         <li>Las acciones tienen atajo de teclado (<kbd>A</kbd> aviso, <kbd>I</kbd> informe, <kbd>C</kbd> cerrar).</li>
         <li>«Casos parecidos» muestra qué decidió el equipo antes con el mismo sistema o vector.</li>
         <li>Lenguaje directo: «Venció hace 16 h», «El sistema actuó porque…».</li>
       </ul>
     </div>
+
     <div class="panel">
       <h2>Layout del caso</h2>
       <div class="wire">
@@ -143,29 +144,70 @@
       </div>
       <p>Bajo 1100 px el riel pasa debajo de la columna principal.</p>
     </div>
+
     <div class="panel">
-      <h2>Paleta</h2>
-      <div class="sw">
-        <div><i style="background:#f2f3f3"></i><span><b>Fondo · #F2F3F3</b>Gris claro</span></div>
-        <div><i style="background:#0f1b2a"></i><span><b>Navegación · #0F1B2A</b>Barra superior</span></div>
-        <div><i style="background:#0972d3"></i><span><b>Acción · #0972D3</b>Botones y foco</span></div>
-        <div><i style="background:#2ea043"></i><span><b>Holgura · #2EA043</b>Plazo con margen</span></div>
-        <div><i style="background:#e9a100"></i><span><b>Atención · #E9A100</b>Plazo por vencer</span></div>
-        <div><i style="background:#d91515"></i><span><b>Incumplido · #D91515</b>Plazo vencido</span></div>
-        <div><i style="background:#3d4f66"></i><span><b>Automático · #3D4F66</b>Acciones del sistema</span></div>
-      </div>
-      <p>La gravedad usa su propia escala (gris, azul, naranja, rojo oscuro) con un medidor de 4 barras.</p>
+      <h2>Prioridad de casos</h2>
+      <p>La cola se ordena por un <b>score de prioridad</b> que combina cuatro factores ponderados. El objetivo es que el analista atienda primero lo más crítico, no solo lo más próximo a vencer.</p>
+      <p style="font-family:var(--mono);font-size:12px;background:#fafafa;padding:10px;border-radius:6px;border:1px solid var(--line-2);margin:8px 0">
+        PRIORIDAD = (Gravedad × 3) + (Clasificación × 2) + (Urgencia temporal × 40) + (Peso del hito × 2)
+      </p>
+      <ul>
+        <li><b>Gravedad</b> · Bajo 1, Medio 2, Alto 3, Crítico 4.</li>
+        <li><b>Clasificación</b> · OIV 2, Esencial 1. OIV pesa más por obligación regulatoria con plazos más cortos.</li>
+        <li><b>Urgencia temporal</b> · 0 a 1, calculada como 1 − (tiempo restante / ventana SLA). Vencido = 1.</li>
+        <li><b>Peso del hito</b> · Aviso Temprano 3, Informe Preliminar 2, Informe Final 1.</li>
+      </ul>
+      <p>Etiquetas visuales: <span class="chip pri-crit">Máxima</span> ≥ 30 puntos · <span class="chip pri-warn">Alta</span> ≥ 22 · <span class="chip pri-ok">Media</span> ≥ 15 · <span class="chip pri-ok">Baja</span> &lt; 15.</p>
     </div>
+
+    <div class="panel">
+      <h2>Paleta institucional</h2>
+      <div class="sw">
+        <div><i style="background:#5862AA"></i><span><b>Acción · #5862AA</b>Azul violeta corporativo</span></div>
+        <div><i style="background:#00B482"></i><span><b>Holgura · #00B482</b>Verde corporativo</span></div>
+        <div><i style="background:#DFC500"></i><span><b>Atención · #DFC500</b>Amarillo corporativo</span></div>
+        <div><i style="background:#E4002B"></i><span><b>Incumplido · #E4002B</b>Rojo corporativo</span></div>
+        <div><i style="background:#F58220"></i><span><b>Gravedad alta · #F58220</b>Naranja corporativo</span></div>
+        <div><i style="background:#008890"></i><span><b>Info · #008890</b>Teal corporativo</span></div>
+        <div><i style="background:#0F1B2A"></i><span><b>Navegación · #0F1B2A</b>Barra superior</span></div>
+        <div><i style="background:#F2F3F3"></i><span><b>Fondo · #F2F3F3</b>Gris claro</span></div>
+      </div>
+      <p>Paleta secundaria institucional Ultraport. Los colores se usan con la semántica del sistema: verde = holgura, amarillo = atención, rojo = incumplido, naranja = gravedad alta, azul violeta = acciones, teal = información.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Tipografía</h2>
+      <p>El sistema usa <b>Roboto</b> para texto general (cargada desde Google Fonts) y <b>Roboto Mono</b> para datos tabulares: horas, contadores y códigos de ticket.</p>
+      <ul>
+        <li><b>Jerarquía:</b> H1 28px · H2 18px · cuerpo 14px · metadatos 12px.</li>
+        <li><b>Monospace</b> solo para valores numéricos alineados: <span class="mono">04:23:11</span>, <span class="mono">INC-88992</span>.</li>
+        <li><b>Line-height</b> 1.5 para párrafos, 1.15 para contadores grandes.</li>
+      </ul>
+    </div>
+
     <div class="panel">
       <h2>Reglas de urgencia</h2>
       <ul>
-        <li><b class="c-ok">Holgura</b>: queda más del 33 % de la ventana y más de 1 hora.</li>
-        <li><b class="c-warn">Atención</b>: queda 33 % o menos de la ventana, o menos de 1 hora.</li>
-        <li><b class="c-crit">Incumplido</b>: plazo vencido, o informe enviado fuera de plazo.</li>
+        <li><b style="color:#037C5A">Holgura</b>: queda más del 33 % de la ventana y más de 1 hora. Color: <span class="mono">#00B482</span>.</li>
+        <li><b style="color:#8F7D00">Atención</b>: queda 33 % o menos de la ventana, o menos de 1 hora. Color: <span class="mono">#DFC500</span>.</li>
+        <li><b style="color:#B30023">Incumplido</b>: plazo vencido, o informe enviado fuera de plazo. Color: <span class="mono">#E4002B</span>.</li>
         <li>El color siempre va con ícono y texto del estado.</li>
-        <li>Acciones automáticas: ícono de engranaje, tarjeta gris azulada y explicación del motivo. Acciones de analistas: iniciales sobre azul.</li>
+        <li>Acciones automáticas: ícono de engranaje, tarjeta gris azulada y explicación del motivo. Acciones de analistas: iniciales sobre azul violeta.</li>
       </ul>
     </div>
+
+    <div class="panel">
+      <h2>Escala de gravedad</h2>
+      <p>La gravedad del incidente se representa con 4 barras ascendentes y color propio:</p>
+      <ul>
+        <li><b style="color:#6b7785">Bajo</b> · <span class="mono">#6B7785</span> · 1 barra.</li>
+        <li><b style="color:#5862AA">Medio</b> · <span class="mono">#5862AA</span> · 2 barras.</li>
+        <li><b style="color:#F58220">Alto</b> · <span class="mono">#F58220</span> · 3 barras.</li>
+        <li><b style="color:#E4002B">Crítico</b> · <span class="mono">#E4002B</span> · 4 barras.</li>
+      </ul>
+      <p>La escala es independiente del semáforo temporal (holgura/atención/incumplido). Un caso de gravedad Baja puede estar vencido, y uno Crítico puede tener holgura.</p>
+    </div>
+
     <div class="panel">
       <h2>Seguridad e integridad de auditoría</h2>
       <ul>
@@ -175,6 +217,7 @@
         <li>Las fechas límite se muestran como sellos fijos del snapshot, nunca editables.</li>
       </ul>
     </div>
+
     <div class="panel">
       <h2>Notas técnicas</h2>
       <ul>
@@ -183,6 +226,8 @@
         <li>La cola se auto-refresca cada 60 s desde <code>GET /api/incidentes</code>.</li>
         <li>El detalle e historial consumen <code>GET /api/incidentes/{id}</code> y <code>GET /api/incidentes/{id}/historial</code>.</li>
         <li>El motor automático (<code>LifecycleAdvancerService</code>) evalúa y avanza estados cada 1 min.</li>
+        <li>El buscador de la cola filtra por código de ticket (búsqueda parcial, case-insensitive) y se combina con los filtros de clasificación y urgencia.</li>
+        <li>El cálculo de prioridad se ejecuta en el frontend al cargar la cola y combina gravedad, clasificación, urgencia temporal y peso del hito pendiente.</li>
       </ul>
     </div>
   </div>

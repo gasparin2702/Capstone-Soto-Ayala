@@ -25,7 +25,9 @@ const ICON = {
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.8.6-1.5 1-1.5 2M12 17v.5"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   checkc: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>',
-  inbox: '<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>'
+  inbox: '<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  fire: '<path d="M12 3s4 5 4 9a4 4 0 11-8 0c0-2 1-3 1-3s0 2 1.5 2S12 8 12 3z"/>'
 };
 const ic = (n, extra = '') => `<svg class="i" viewBox="0 0 24 24" ${extra}>${ICON[n]}</svg>`;
 
@@ -63,101 +65,186 @@ const sev = (g, big) => `<span class="sev${big ? ' big' : ''}" data-g="${g}"><sp
 const MS = { A: 'Aviso Temprano', P: 'Informe Preliminar', F: 'Informe Final' };
 const STEPS = ['Detectado', 'Aviso Temprano', 'Informe Preliminar', 'Informe Final', 'Cerrado'];
 
+/* ============================================================
+   MOTOR DE PRIORIDAD
+   ============================================================ */
+const PRIORITY_WEIGHTS = {
+  gravedad: 3,
+  clasificacion: 2,
+  urgencia: 4,
+  hito: 2
+};
+
+function calcularUrgenciaTemporal(limit, win) {
+  const rem = limit - now();
+  if (rem <= 0) return 1;
+  const frac = Math.min(1, rem / win);
+  return 1 - frac;
+}
+
+function pesoDelHito(ms) {
+  if (ms === 'A') return 3;
+  if (ms === 'P') return 2;
+  return 1;
+}
+
+function calcularPrioridad(incidente) {
+  const g = Math.max(1, Math.min(4, Number(incidente.g) || 1));
+  const cls = incidente.cls === 'OIV' ? 2 : 1;
+  const u = calcularUrgenciaTemporal(incidente.limit, incidente.win);
+  const h = pesoDelHito(incidente.ms);
+
+  const score =
+    (g * PRIORITY_WEIGHTS.gravedad) +
+    (cls * PRIORITY_WEIGHTS.clasificacion) +
+    (u * PRIORITY_WEIGHTS.urgencia * 10) +
+    (h * PRIORITY_WEIGHTS.hito);
+
+  return Math.round(score * 100) / 100;
+}
+
+function prioridadLabel(score) {
+  if (score >= 30) return { txt: 'Máxima', c: 'crit' };
+  if (score >= 22) return { txt: 'Alta', c: 'warn' };
+  if (score >= 15) return { txt: 'Media', c: 'ok' };
+  return { txt: 'Baja', c: 'ok' };
+}
+
 /* ---------- estado ---------- */
 let rows = [];
 let inc = null;
 let events = [];
 let filt = 'all';
 let tlFilter = 'all';
-let searchQuery = '';   // ⬅ NUEVO
+let searchQuery = '';
+let detalleCargando = false;
 
 /* ---------- carga de datos ---------- */
 async function loadCola() {
   try {
     const data = await SitracAPI.obtenerIncidentesActivos();
     rows = Array.isArray(data) ? data : [];
+    rows.forEach(x => { x.priority = calcularPrioridad(x); });
   } catch (err) {
     console.error('[loadCola] error:', err);
     rows = [];
   }
   renderDash();
   greet();
+  if (inc && !$('#v-det').hidden) {
+    const sigue = rows.some(x => Number(x.dbId) === Number(inc.dbId));
+    if (!sigue && rows.length > 0) {
+      await openRow(ordenarPorPrioridad(rows)[0].dbId, { silent: true });
+    } else if (sigue) {
+      await openRow(inc.dbId, { silent: true });
+    }
+  }
 }
 window.loadCola = loadCola;
 
-async function openRow(dbId) {
+function ordenarPorPrioridad(lista) {
+  return [...lista].sort((a, b) => {
+    const pa = a.priority ?? calcularPrioridad(a);
+    const pb = b.priority ?? calcularPrioridad(b);
+    if (pb !== pa) return pb - pa;
+    return a.limit - b.limit;
+  });
+}
+
+async function openRow(dbId, opts = {}) {
   if (dbId === undefined || dbId === null) return;
+  if (detalleCargando) return;
+  detalleCargando = true;
+
   const id = Number(dbId);
+  const silent = !!opts.silent;
 
-  const [det, hist] = await Promise.all([
-    SitracAPI.obtenerDetalleIncidente(id),
-    SitracAPI.obtenerHistorialIncidente(id)
-  ]);
-  if (!det) { toast('Error al cargar detalle del incidente.'); return; }
+  try {
+    const [det, hist] = await Promise.all([
+      SitracAPI.obtenerDetalleIncidente(id),
+      SitracAPI.obtenerHistorialIncidente(id)
+    ]);
+    if (!det) {
+      if (!silent) toast('No se pudo cargar el detalle del incidente.');
+      return;
+    }
 
-  const toma = new Date(det.fechaTomaConocimiento).getTime();
-  const limA = det.fechaLimiteAvisoTemprano ? new Date(det.fechaLimiteAvisoTemprano).getTime() : toma + 3 * H;
-  const limP = det.fechaLimiteInformePreliminar ? new Date(det.fechaLimiteInformePreliminar).getTime() : toma + (det.clasificacion === 'OIV' ? 24 : 72) * H;
-  const limF = det.fechaLimiteInformeFinal ? new Date(det.fechaLimiteInformeFinal).getTime() : toma + 15 * D;
+    const toma = new Date(det.fechaTomaConocimiento).getTime();
+    const limA = det.fechaLimiteAvisoTemprano ? new Date(det.fechaLimiteAvisoTemprano).getTime() : toma + 3 * H;
+    const limP = det.fechaLimiteInformePreliminar ? new Date(det.fechaLimiteInformePreliminar).getTime() : toma + (det.clasificacion === 'OIV' ? 24 : 72) * H;
+    const limF = det.fechaLimiteInformeFinal ? new Date(det.fechaLimiteInformeFinal).getTime() : toma + 15 * D;
 
-  let estadoUI = det.estado;
-  if (estadoUI === 'En triage') estadoUI = 'Detectado';
-  else if (estadoUI === 'Aviso enviado') estadoUI = 'Aviso Temprano';
-  else if (estadoUI === 'Preliminar enviado') estadoUI = 'Informe Preliminar';
+    let estadoUI = det.estado;
+    if (estadoUI === 'En triage') estadoUI = 'Detectado';
+    else if (estadoUI === 'Aviso enviado') estadoUI = 'Aviso Temprano';
+    else if (estadoUI === 'Preliminar enviado') estadoUI = 'Informe Preliminar';
 
-  const sentA = (estadoUI !== 'Detectado') ? limA - 1000 : null;
-  const sentP = (estadoUI === 'Informe Preliminar' || estadoUI === 'Informe Final' || estadoUI === 'Cerrado') ? limP - 1000 : null;
-  const sentF = (estadoUI === 'Cerrado') ? limF - 1000 : null;
+    const sentA = (estadoUI !== 'Detectado') ? limA - 1000 : null;
+    const sentP = (estadoUI === 'Informe Preliminar' || estadoUI === 'Informe Final' || estadoUI === 'Cerrado') ? limP - 1000 : null;
+    const sentF = (estadoUI === 'Cerrado') ? limF - 1000 : null;
 
-  inc = {
-    id: det.codigoTicketInvgate || `INC-DB-${det.idIncidente}`,
-    dbId: det.idIncidente,
-    ticket: det.codigoTicketInvgate || 'N/A',
-    toma,
-    cls: det.clasificacion,
-    g: det.gravedad,
-    estado: estadoUI,
-    sistema: det.sistemaAfectado || 'No especificado',
-    titulo: 'Incidente de Seguridad (' + (det.origen || 'N/A') + ')',
-    vector: det.vectorAtaque || 'En investigación',
-    origenDet: det.origenDeteccion || det.origen || 'S/I',
-    dp: 'En revisión',
-    win: { A: limA - toma, P: limP - toma, F: limF - toma },
-    sent: { A: sentA, P: sentP, F: sentF },
-    closed: estadoUI === 'Cerrado',
-    notifDetenidas: sentA !== null,
-    lim: { A: limA, P: limP, F: limF }
-  };
+    inc = {
+      id: det.codigoTicketInvgate || `INC-DB-${det.idIncidente}`,
+      dbId: det.idIncidente,
+      ticket: det.codigoTicketInvgate || 'N/A',
+      toma,
+      cls: det.clasificacion,
+      g: det.gravedad,
+      estado: estadoUI,
+      sistema: det.sistemaAfectado || 'No especificado',
+      titulo: 'Incidente de Seguridad (' + (det.origen || 'N/A') + ')',
+      vector: det.vectorAtaque || 'En investigación',
+      origenDet: det.origenDeteccion || det.origen || 'S/I',
+      dp: 'En revisión',
+      win: { A: limA - toma, P: limP - toma, F: limF - toma },
+      sent: { A: sentA, P: sentP, F: sentF },
+      closed: estadoUI === 'Cerrado',
+      notifDetenidas: sentA !== null,
+      lim: { A: limA, P: limP, F: limF }
+    };
 
-  events = (Array.isArray(hist) ? hist : []).map(h => ({
-    id: 'EVT-' + h.idEventoHistorial,
-    a: h.esAccionAutomatica ? 'sys' : 'ana',
-    who: h.responsable || 'Sistema',
-    t: new Date(h.fechaCambio).getTime(),
-    title: h.ambitoCambio,
-    from: h.estadoAnterior,
-    to: h.estadoNuevo,
-    gFrom: h.gravedadAnterior,
-    gTo: h.gravedadNueva,
-    forced: h.esAccionAutomatica ? 'Evaluación automática SLA' : null,
-    comment: h.comentario || 'Sin justificación registrada.'
-  }));
+    events = (Array.isArray(hist) ? hist : []).map(h => ({
+      id: 'EVT-' + h.idEventoHistorial,
+      a: h.esAccionAutomatica ? 'sys' : 'ana',
+      who: h.responsable || 'Sistema',
+      t: new Date(h.fechaCambio).getTime(),
+      title: h.ambitoCambio,
+      from: h.estadoAnterior,
+      to: h.estadoNuevo,
+      gFrom: h.gravedadAnterior,
+      gTo: h.gravedadNueva,
+      forced: h.esAccionAutomatica ? 'Evaluación automática SLA' : null,
+      comment: h.comentario || 'Sin justificación registrada.'
+    }));
 
-  actualizarPaginator(id);
-  go('det');
-  renderAll();
+    actualizarPaginator(id);
+    if (!silent) go('det');
+    renderAll();
+  } catch (err) {
+    console.error('[openRow] error:', err);
+    if (!silent) toast('Error al cargar el detalle.');
+  } finally {
+    detalleCargando = false;
+  }
 }
 window.openRow = openRow;
 
+async function abrirMasUrgente(opts = {}) {
+  if (!rows.length) return false;
+  const masUrgente = ordenarPorPrioridad(rows)[0];
+  await openRow(masUrgente.dbId, opts);
+  return true;
+}
+window.abrirMasUrgente = abrirMasUrgente;
+
 /* ---------- paginador ---------- */
 function calcularListaFiltrada() {
-  let lista = rows.slice().sort((a, b) => a.limit - b.limit);
+  let lista = ordenarPorPrioridad(rows);
   if (filt === 'OIV' || filt === 'Esencial') lista = lista.filter(x => x.cls === filt);
   if (filt === 'crit') lista = lista.filter(x => {
     const c = classify(x.limit, x.win, null);
     return c.k === 'over' || (c.k === 'warn' && c.rem <= H);
   });
-  // ⬅ NUEVO: filtro por código de caso
   if (searchQuery.trim()) {
     const q = searchQuery.trim().toLowerCase();
     lista = lista.filter(x =>
@@ -209,22 +296,32 @@ function go(v) {
   if (v === 'det' && inc) renderSla();
 }
 
-document.addEventListener('click', e => {
-  // Botón "Revisar el caso más urgente"
+document.addEventListener('click', async e => {
   const btnUrgent = e.target.closest('button.pbtn');
   if (btnUrgent && btnUrgent.textContent.toLowerCase().includes('urgente')) {
     e.preventDefault();
-    if (rows.length > 0) {
-      const masUrgente = [...rows].sort((a, b) => a.limit - b.limit)[0];
-      openRow(masUrgente.dbId);
-    } else {
-      toast('No hay incidentes en la cola.');
-    }
+    const ok = await abrirMasUrgente();
+    if (!ok) toast('No hay incidentes en la cola.');
     return;
   }
-  // Tabs y data-go
+
   const g = e.target.closest('[data-go]');
-  if (g) { e.preventDefault(); go(g.dataset.go); }
+  if (g) {
+    e.preventDefault();
+    const destino = g.dataset.go;
+
+    if (destino === 'det' && !inc) {
+      if (rows.length === 0) {
+        toast('No hay incidentes en la cola.');
+        return;
+      }
+      go('det');
+      await abrirMasUrgente({ silent: true });
+      return;
+    }
+
+    go(destino);
+  }
 });
 
 /* ---------- render: cola ---------- */
@@ -245,24 +342,27 @@ function renderDash() {
         <div class="bar-split" aria-hidden="true"><i style="width:${r.length ? inv / r.length * 100 : 0}%;background:var(--primary)"></i><i style="width:${r.length ? mail / r.length * 100 : 0}%;background:#7fb5e8"></i></div>
         <span class="s"><span>INVGATE ${inv}</span><span>Correo ${mail}</span><span>Manual ${man}</span></span></div>`;
 
-    // ⬅ NUEVO: usa la función centralizada que incluye búsqueda
-    const idsFiltrados = new Set(calcularListaFiltrada().map(x => x.dbId));
-    const list = r.filter(x => idsFiltrados.has(x.dbId));
+    // ⬅ FIX: usar directamente calcularListaFiltrada() para que el DOM respete el orden por prioridad.
+    // Antes hacíamos un filter sobre `r` que reordenaba por el orden original de rows.
+    const list = calcularListaFiltrada();
 
     $('#triage').innerHTML = list.map(x => {
-      const c = x.cl;
+      const c = classify(x.limit, x.win, null);
       const t = c.k === 'over' ? '+' + dur(now() - x.limit) : dur(c.rem);
       const lab = c.k === 'over' ? 'Vencido' : c.k === 'warn' ? 'Advertencia' : 'Holgura';
       const isAuto = x.origin !== 'Manual';
-      return `<tr tabindex="0" data-open="${x.dbId}">
+      const isActive = inc && Number(inc.dbId) === Number(x.dbId);
+      const pr = prioridadLabel(x.priority ?? calcularPrioridad(x));
+      return `<tr tabindex="0" data-open="${x.dbId}" ${isActive ? 'class="is-active"' : ''}>
         <td><span class="mono" style="font-weight:600">${esc(x.id)}</span></td>
+        <td><span class="chip pri-${pr.c}">${ic('fire')}${pr.txt}</span></td>
         <td><span class="origin">${ic(x.origin === 'Correo' ? 'inbox' : x.origin === 'INVGATE' ? 'bell' : 'user')}${esc(x.origin)}${isAuto ? '<span class="auto">AUTO</span>' : ''}</span></td>
         <td><span class="chip ${x.cls === 'OIV' ? 'ana' : ''}">${esc(x.cls)}</span></td>
         <td>${sev(x.g)}</td>
         <td>${esc(x.estado)}</td>
         <td><div class="tr" data-limit="${x.limit}" data-win="${x.win}" data-ms="${MS[x.ms] || ''}"><div class="row"><span class="ms">${MS[x.ms] || ''} · ${lab}</span><span class="t c-${c.c}">${t}</span></div><div class="track"><i class="bg-${c.c}" style="width:${c.k === 'over' ? 100 : Math.max(3, c.frac * 100)}%"></i></div></div></td>
       </tr>`;
-    }).join('') || `<tr><td colspan="6" style="color:var(--fg-3);padding:20px;text-align:center">${
+    }).join('') || `<tr><td colspan="7" style="color:var(--fg-3);padding:20px;text-align:center">${
       searchQuery.trim()
         ? `Sin casos que coincidan con «${esc(searchQuery.trim())}».`
         : 'Sin incidentes para este filtro.'
@@ -300,7 +400,6 @@ $('#filters').addEventListener('click', e => {
   renderDash();
 });
 
-// ⬅ NUEVO: buscador por código de caso
 const searchInput = $('#search-input');
 const searchClear = $('#search-clear');
 
@@ -310,7 +409,6 @@ if (searchInput) {
     if (searchClear) searchClear.hidden = searchQuery.length === 0;
     renderDash();
   });
-  // Atajo: presionar Escape limpia el buscador
   searchInput.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       searchQuery = '';
@@ -537,7 +635,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('#ov').hidden) closeModal();
 });
 
-/* ---------- commit (simulado hasta tener POST) ---------- */
+/* ---------- commit ---------- */
 async function commit(kind, comment, tipo, archivo) {
   console.log(`[commit] kind=${kind} id=${inc?.dbId} comment="${comment}" tipo=${tipo} archivo=${archivo}`);
   toast(`Simulación: acción «${kind}» registrada (esperando endpoints POST).`);
@@ -546,7 +644,7 @@ async function commit(kind, comment, tipo, archivo) {
   await new Promise(r => setTimeout(r, 400));
 
   await loadCola();
-  if (inc && inc.dbId) await openRow(inc.dbId);
+  if (inc && inc.dbId) await openRow(inc.dbId, { silent: true });
 }
 
 /* ---------- casos similares (mock) ---------- */
@@ -601,7 +699,6 @@ function renderAll() {
     }
     if (!$('#v-det').hidden) { renderSla(); renderHint(); }
     if (!$('#v-dash').hidden) { tickDash(); greet(); }
-    // Auto-refresh de la cola cada 60s
     if (new Date().getSeconds() === 0 && !document.hidden) loadCola();
   }, 1000);
 

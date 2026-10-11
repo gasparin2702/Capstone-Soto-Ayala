@@ -67,6 +67,9 @@ export const SitracAPI = {
                     ms: hitoActual.ms,
                     win: hitoActual.win,
                     limit: hitoActual.limit,
+                    // ⬅ NUEVO: campos que el motor de prioridad necesita
+                    toma,                                    // timestamp de la toma de conocimiento
+                    estadoOriginal: item.estado,             // texto crudo del backend
                     live: true
                 };
             });

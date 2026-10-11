@@ -46,12 +46,19 @@
   <div class="kpis" id="kpis"></div>
   <div class="panel">
     <div class="panel-h">
-      <div><h2>Casos por atender</h2><div style="font-size:13px;color:var(--text-3)">Ordenados por el próximo plazo legal que vence</div></div>
-      <div class="filters" id="filters">
-        <button aria-pressed="true" data-f="all">Todos</button>
-        <button aria-pressed="false" data-f="OIV">OIV</button>
-        <button aria-pressed="false" data-f="Esencial">Esencial</button>
-        <button aria-pressed="false" data-f="crit">Urgentes y vencidos</button>
+      <div><h2>Casos por atender</h2><div style="font-size:13px;color:var(--text-3)">Ordenados por prioridad · criticidad × tiempo restante</div></div>
+      <div class="panel-tools">
+        <div class="search-wrap" role="search">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input type="search" id="search-input" placeholder="Buscar por código de caso…" autocomplete="off" aria-label="Buscar caso por código">
+          <button type="button" id="search-clear" hidden aria-label="Limpiar búsqueda">×</button>
+        </div>
+        <div class="filters" id="filters">
+          <button aria-pressed="true" data-f="all">Todos</button>
+          <button aria-pressed="false" data-f="OIV">OIV</button>
+          <button aria-pressed="false" data-f="Esencial">Esencial</button>
+          <button aria-pressed="false" data-f="crit">Urgentes y vencidos</button>
+        </div>
       </div>
     </div>
     <div class="tablewrap"><table>

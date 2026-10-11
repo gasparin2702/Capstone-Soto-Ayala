@@ -69,6 +69,7 @@ let inc = null;
 let events = [];
 let filt = 'all';
 let tlFilter = 'all';
+let searchQuery = '';   // ⬅ NUEVO
 
 /* ---------- carga de datos ---------- */
 async function loadCola() {
@@ -156,6 +157,14 @@ function calcularListaFiltrada() {
     const c = classify(x.limit, x.win, null);
     return c.k === 'over' || (c.k === 'warn' && c.rem <= H);
   });
+  // ⬅ NUEVO: filtro por código de caso
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    lista = lista.filter(x =>
+      String(x.id || '').toLowerCase().includes(q) ||
+      String(x.ticket || '').toLowerCase().includes(q)
+    );
+  }
   return lista;
 }
 
@@ -236,9 +245,9 @@ function renderDash() {
         <div class="bar-split" aria-hidden="true"><i style="width:${r.length ? inv / r.length * 100 : 0}%;background:var(--primary)"></i><i style="width:${r.length ? mail / r.length * 100 : 0}%;background:#7fb5e8"></i></div>
         <span class="s"><span>INVGATE ${inv}</span><span>Correo ${mail}</span><span>Manual ${man}</span></span></div>`;
 
-    let list = r.slice().sort((a, b) => a.limit - b.limit);
-    if (filt === 'OIV' || filt === 'Esencial') list = list.filter(x => x.cls === filt);
-    if (filt === 'crit') list = list.filter(x => x.cl.k === 'over' || (x.cl.k === 'warn' && x.cl.rem <= H));
+    // ⬅ NUEVO: usa la función centralizada que incluye búsqueda
+    const idsFiltrados = new Set(calcularListaFiltrada().map(x => x.dbId));
+    const list = r.filter(x => idsFiltrados.has(x.dbId));
 
     $('#triage').innerHTML = list.map(x => {
       const c = x.cl;
@@ -253,7 +262,11 @@ function renderDash() {
         <td>${esc(x.estado)}</td>
         <td><div class="tr" data-limit="${x.limit}" data-win="${x.win}" data-ms="${MS[x.ms] || ''}"><div class="row"><span class="ms">${MS[x.ms] || ''} · ${lab}</span><span class="t c-${c.c}">${t}</span></div><div class="track"><i class="bg-${c.c}" style="width:${c.k === 'over' ? 100 : Math.max(3, c.frac * 100)}%"></i></div></div></td>
       </tr>`;
-    }).join('') || '<tr><td colspan="6" style="color:var(--fg-3)">Sin incidentes para este filtro.</td></tr>';
+    }).join('') || `<tr><td colspan="6" style="color:var(--fg-3);padding:20px;text-align:center">${
+      searchQuery.trim()
+        ? `Sin casos que coincidan con «${esc(searchQuery.trim())}».`
+        : 'Sin incidentes para este filtro.'
+    }</td></tr>`;
   } catch (err) {
     console.error('[renderDash] error:', err);
   }
@@ -286,6 +299,36 @@ $('#filters').addEventListener('click', e => {
   $$('#filters button').forEach(x => x.setAttribute('aria-pressed', x === b));
   renderDash();
 });
+
+// ⬅ NUEVO: buscador por código de caso
+const searchInput = $('#search-input');
+const searchClear = $('#search-clear');
+
+if (searchInput) {
+  searchInput.addEventListener('input', e => {
+    searchQuery = e.target.value;
+    if (searchClear) searchClear.hidden = searchQuery.length === 0;
+    renderDash();
+  });
+  // Atajo: presionar Escape limpia el buscador
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      searchQuery = '';
+      searchInput.value = '';
+      if (searchClear) searchClear.hidden = true;
+      renderDash();
+    }
+  });
+}
+
+if (searchClear) {
+  searchClear.addEventListener('click', () => {
+    searchQuery = '';
+    if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+    searchClear.hidden = true;
+    renderDash();
+  });
+}
 
 $('#triage').addEventListener('click', e => {
   const tr = e.target.closest('tr[data-open]'); if (!tr) return;

@@ -54,12 +54,19 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                SELECT i.IdIncidente, i.CodigoTicketInvgate, i.CodTipoEstadoIncidente, 
-                       s.FechaLimiteAvisoTemprano, s.FechaLimiteInformePreliminar, s.FechaLimiteInformeFinal
+                SELECT 
+                    i.IdIncidente, 
+                    i.CodigoTicketInvgate, 
+                    i.CodTipoEstadoIncidente,
+                    i.CodTipoGravedad,
+                    i.CodTipoClasificacionEmpresa,
+                    s.FechaLimiteAvisoTemprano, 
+                    s.FechaLimiteInformePreliminar, 
+                    s.FechaLimiteInformeFinal
                 FROM TbAnciIncidente i
                 INNER JOIN TbAnciIncidentePlazoSla s ON i.IdIncidente = s.IdIncidente
                 WHERE i.CodTipoEstadoIncidente < 4 AND i.AuditNotDeleted = 1";
-            
+
             return await connection.QueryAsync<IncidenteSlaInfo>(sql);
         }
 

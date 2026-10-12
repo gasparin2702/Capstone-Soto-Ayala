@@ -7,6 +7,8 @@ namespace Sitrac.Repository.Models
         public long IdIncidente { get; set; }
         public string CodigoTicketInvgate { get; set; } = string.Empty;
         public long CodTipoEstadoIncidente { get; set; }
+        public long CodTipoGravedad { get; set; }
+        public long CodTipoClasificacionEmpresa { get; set; }
         public DateTime FechaLimiteAvisoTemprano { get; set; }
         public DateTime FechaLimiteInformePreliminar { get; set; }
         public DateTime FechaLimiteInformeFinal { get; set; }

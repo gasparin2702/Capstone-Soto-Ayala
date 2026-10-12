@@ -7,6 +7,7 @@ using Sitrac.Repository.Interfaces;
 using Sitrac.Repository.Models;
 using Sitrac.Service.Configuration;
 using Sitrac.Service.Dtos;
+using Sitrac.Service.Helpers;
 using Sitrac.Service.Interfaces;
 
 namespace Sitrac.Service
@@ -17,6 +18,7 @@ namespace Sitrac.Service
         private readonly ISlaRepository _slaRepository;
         private readonly INotificacionService _notificacionService;
         private readonly SmtpSettings _smtpSettings;
+        private readonly TeamsSettings _teamsSettings;
         private readonly ILogger<IncidenteService> _logger;
 
         public IncidenteService(
@@ -24,12 +26,14 @@ namespace Sitrac.Service
             ISlaRepository slaRepository,
             INotificacionService notificacionService,
             IOptions<SmtpSettings> smtpSettings,
+            IOptions<TeamsSettings> teamsSettings,
             ILogger<IncidenteService> logger)
         {
             _incidenteRepository = incidenteRepository;
             _slaRepository = slaRepository;
             _notificacionService = notificacionService;
             _smtpSettings = smtpSettings.Value;
+            _teamsSettings = teamsSettings.Value;
             _logger = logger;
         }
 
@@ -51,9 +55,10 @@ namespace Sitrac.Service
             var idGenerado = await _incidenteRepository.InsertarAsync(nuevoIncidente);
             var parametrosSla = await _slaRepository.ObtenerParametrosPorEmpresaAsync(request.CodTipoClasificacionEmpresa);
 
+            AnciIncidentePlazoSla? plazos = null;
             if (parametrosSla != null)
             {
-                var plazos = new AnciIncidentePlazoSla
+                plazos = new AnciIncidentePlazoSla
                 {
                     IdIncidente = idGenerado,
                     IdTipoPlazoSla = parametrosSla.IdTipoPlazoSla,
@@ -65,39 +70,91 @@ namespace Sitrac.Service
                 await _slaRepository.InsertarPlazosAsync(plazos);
             }
 
-            await IntentarNotificarAsync(idGenerado, request, parametrosSla?.HorasAvisoTemprano ?? 3);
+            var horasSla = parametrosSla?.HorasAvisoTemprano ?? 3;
+
+            await IntentarNotificarEmailAsync(idGenerado, request, horasSla);
+            await IntentarNotificarTeamsAsync(idGenerado, request, plazos, horasSla, esCreacion: true);
 
             return idGenerado;
         }
 
-        private async Task IntentarNotificarAsync(long idIncidente, CrearIncidenteRequest request, int horasSla)
+        private async Task IntentarNotificarEmailAsync(long idIncidente, CrearIncidenteRequest request, int horasSla)
         {
             var destinatario = _smtpSettings.DestinatarioDemo;
             if (string.IsNullOrWhiteSpace(destinatario))
             {
                 _logger.LogInformation(
-                    "[IncidenteService] Sin destinatario configurado. Omitiendo notificación para {Ticket}",
+                    "[IncidenteService][Email] Evento: Omitido Ticket: {Ticket} Motivo: SinDestinatarioConfigurado",
                     request.CodigoTicketInvgate);
                 return;
             }
 
-            try
-            {
-                var resultado = await _notificacionService.EnviarAlertaNuevoIncidenteAsync(
-                    destinatario,
-                    request.CodigoTicketInvgate ?? $"INC-{idIncidente}",
-                    request.DescripcionSistemaAfectado ?? "No especificado",
-                    horasSla);
+            var resultado = await _notificacionService.EnviarAlertaNuevoIncidenteAsync(
+                destinatario,
+                request.CodigoTicketInvgate ?? $"INC-{idIncidente}",
+                request.DescripcionSistemaAfectado ?? "No especificado",
+                horasSla);
 
-                if (!resultado.Exito)
-                    _logger.LogWarning("[IncidenteService] Alerta no enviada para {Ticket}: {Error}",
-                        request.CodigoTicketInvgate, resultado.MensajeError);
-            }
-            catch (Exception ex)
+            if (!resultado.Exito)
+                _logger.LogWarning(
+                    "[IncidenteService][Email] Evento: Fallo Ticket: {Ticket} Error: {Error}",
+                    request.CodigoTicketInvgate, resultado.MensajeError);
+        }
+
+        private async Task IntentarNotificarTeamsAsync(
+            long idIncidente,
+            CrearIncidenteRequest request,
+            AnciIncidentePlazoSla? plazos,
+            int horasSla,
+            bool esCreacion)
+        {
+            if (!_teamsSettings.EstaConfigurado())
             {
-                _logger.LogError(ex, "[IncidenteService] Error notificando {Ticket}. Incidente guardado igual.",
+                _logger.LogInformation(
+                    "[IncidenteService][Teams] Evento: Omitido Ticket: {Ticket} Motivo: TeamsNoConfigurado",
                     request.CodigoTicketInvgate);
+                return;
             }
+
+            var ahora = DateTime.Now;
+            var fechaLimite = plazos?.FechaLimiteAvisoTemprano
+                ?? request.FechaTomaConocimiento.AddHours(horasSla);
+
+            var clasificacion = request.CodTipoClasificacionEmpresa == 2 ? "OIV" : "Esencial";
+            var score = PrioridadCalculator.Calcular(
+                gravedad: (int)request.CodTipoGravedad,
+                clasificacion: clasificacion,
+                hitoCodigo: 1,
+                fechaLimite: fechaLimite,
+                fechaVencimiento: plazos?.FechaTomaConocimiento ?? request.FechaTomaConocimiento,
+                ahora: ahora);
+
+            if (!esCreacion && score < _teamsSettings.UmbralPrioridadMinima)
+            {
+                _logger.LogInformation(
+                    "[IncidenteService][Teams] Evento: Omitido Ticket: {Ticket} Score: {Score} Umbral: {Umbral}",
+                    request.CodigoTicketInvgate, score, _teamsSettings.UmbralPrioridadMinima);
+                return;
+            }
+
+            var razon = esCreacion
+                ? "Nuevo incidente registrado"
+                : "Cambio de estado relevante";
+
+            var resultado = await _notificacionService.EnviarAlertaTeamsAsync(
+                ticketId: request.CodigoTicketInvgate ?? $"INC-{idIncidente}",
+                sistema: request.DescripcionSistemaAfectado ?? "No especificado",
+                gravedad: (int)request.CodTipoGravedad,
+                clasificacion: clasificacion,
+                estado: "En triage",
+                prioridadScore: score,
+                hitoPendiente: "Aviso Temprano",
+                razon: razon);
+
+            if (!resultado.Exito)
+                _logger.LogWarning(
+                    "[IncidenteService][Teams] Evento: Fallo Ticket: {Ticket} Score: {Score} Error: {Error}",
+                    request.CodigoTicketInvgate, score, resultado.MensajeError);
         }
 
         public async Task ProcesarCicloDeVidaAsync()
@@ -109,21 +166,25 @@ namespace Sitrac.Service
             {
                 long nuevoEstado = 0;
                 string comentarioCambio = string.Empty;
+                string hitoPendiente = string.Empty;
 
                 if (inc.CodTipoEstadoIncidente == 1 && ahora >= inc.FechaLimiteAvisoTemprano)
                 {
                     nuevoEstado = 2;
                     comentarioCambio = "Avance automático a Aviso Enviado por vencimiento de SLA (3 horas).";
+                    hitoPendiente = "Aviso Temprano";
                 }
                 else if (inc.CodTipoEstadoIncidente == 2 && ahora >= inc.FechaLimiteInformePreliminar)
                 {
                     nuevoEstado = 3;
                     comentarioCambio = "Avance automático a Preliminar Enviado por vencimiento de SLA.";
+                    hitoPendiente = "Informe Preliminar";
                 }
                 else if (inc.CodTipoEstadoIncidente == 3 && ahora >= inc.FechaLimiteInformeFinal)
                 {
                     nuevoEstado = 4;
                     comentarioCambio = "Cierre automático de incidente por vencimiento de SLA (15 días).";
+                    hitoPendiente = "Informe Final";
                 }
 
                 if (nuevoEstado > 0)
@@ -139,8 +200,71 @@ namespace Sitrac.Service
                         Comentario = comentarioCambio
                     };
                     await _incidenteRepository.AvanzarEstadoConHistorialAsync(inc.IdIncidente, nuevoEstado, historial);
+
+                    if (nuevoEstado < 4)
+                    {
+                        await NotificarTeamsPorAvanceMotorAsync(inc, nuevoEstado, hitoPendiente, ahora);
+                    }
                 }
             }
+        }
+
+        private async Task NotificarTeamsPorAvanceMotorAsync(
+            IncidenteSlaInfo inc,
+            long nuevoEstado,
+            string hitoPendiente,
+            DateTime ahora)
+        {
+            if (!_teamsSettings.EstaConfigurado())
+                return;
+
+            var gravedad = inc.CodTipoGravedad;
+            var clasificacion = inc.CodTipoClasificacionEmpresa == 2 ? "OIV" : "Esencial";
+
+            var fechaLimite = nuevoEstado switch
+            {
+                2 => inc.FechaLimiteInformePreliminar,
+                3 => inc.FechaLimiteInformeFinal,
+                _ => inc.FechaLimiteInformeFinal
+            };
+
+            var score = PrioridadCalculator.Calcular(
+                gravedad: (int)gravedad,
+                clasificacion: clasificacion,
+                hitoCodigo: nuevoEstado,
+                fechaLimite: fechaLimite,
+                fechaVencimiento: inc.FechaLimiteAvisoTemprano,
+                ahora: ahora);
+
+            if (score < _teamsSettings.UmbralPrioridadMinima)
+            {
+                _logger.LogInformation(
+                    "[IncidenteService][Teams] Evento: OmitidoMotor Ticket: {Ticket} Score: {Score} Umbral: {Umbral}",
+                    inc.CodigoTicketInvgate, score, _teamsSettings.UmbralPrioridadMinima);
+                return;
+            }
+
+            var estadoTexto = nuevoEstado switch
+            {
+                2 => "Aviso Temprano",
+                3 => "Informe Preliminar",
+                _ => "Desconocido"
+            };
+
+            var resultado = await _notificacionService.EnviarAlertaTeamsAsync(
+                ticketId: inc.CodigoTicketInvgate ?? $"INC-{inc.IdIncidente}",
+                sistema: "Sistema registrado",
+                gravedad: (int)gravedad,
+                clasificacion: clasificacion,
+                estado: estadoTexto,
+                prioridadScore: score,
+                hitoPendiente: hitoPendiente,
+                razon: "Plazo vencido: el motor avanzó el estado automáticamente");
+
+            if (!resultado.Exito)
+                _logger.LogWarning(
+                    "[IncidenteService][Teams] Evento: FalloMotor Ticket: {Ticket} Score: {Score} Error: {Error}",
+                    inc.CodigoTicketInvgate, score, resultado.MensajeError);
         }
 
         public async Task<IEnumerable<IncidenteResumen>> ObtenerIncidentesActivosAsync()

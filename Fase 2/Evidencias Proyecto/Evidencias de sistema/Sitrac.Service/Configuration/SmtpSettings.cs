@@ -13,6 +13,7 @@ namespace Sitrac.Service.Configuration
         public string NombreRemitente { get; set; } = "SITRAC-ANCI Alertas";
         public int TimeoutMs { get; set; } = 10000;
         public int MaxReintentos { get; set; } = 1;
+        public int IntervaloEntreEnviosMs { get; set; } = 1200;
 
         public bool EstaConfigurado() =>
             !string.IsNullOrWhiteSpace(Host) &&

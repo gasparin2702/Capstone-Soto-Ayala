@@ -23,6 +23,9 @@ if (builder.Environment.IsDevelopment())
 builder.Services.Configure<SmtpSettings>(
     builder.Configuration.GetSection(SmtpSettings.SectionName));
 
+builder.Services.Configure<TeamsSettings>(
+    builder.Configuration.GetSection(TeamsSettings.SectionName));
+
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IIncidenteRepository, IncidenteRepository>();
 builder.Services.AddScoped<ISlaRepository, SlaRepository>();

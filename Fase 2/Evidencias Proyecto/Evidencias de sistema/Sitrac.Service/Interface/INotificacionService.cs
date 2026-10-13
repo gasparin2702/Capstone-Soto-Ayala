@@ -12,5 +12,16 @@ namespace Sitrac.Service.Interfaces
             string sistema,
             int horasSla,
             CancellationToken cancellationToken = default);
+
+        Task<ResultadoEnvio> EnviarAlertaTeamsAsync(
+            string ticketId,
+            string sistema,
+            int gravedad,
+            string clasificacion,
+            string estado,
+            double prioridadScore,
+            string hitoPendiente,
+            string? razon,
+            CancellationToken cancellationToken = default);
     }
 }

@@ -13,6 +13,10 @@ namespace Sitrac.Service.Helpers
         public const int UmbralAlta = 22;
         public const int UmbralMedia = 15;
 
+        // Lookup tables for gravedad mappings (index 0 = gravedad 1)
+        private static readonly string[] _emojiGravedadMap = { "⚪", "🔵", "🟠", "🔴" };
+        private static readonly string[] _nombreGravedadMap = { "Bajo", "Medio", "Alto", "Crítico" };
+
         public static double Calcular(
             int gravedad,
             string clasificacion,
@@ -22,7 +26,7 @@ namespace Sitrac.Service.Helpers
             DateTime ahora)
         {
             var g = Math.Max(1, Math.Min(4, gravedad));
-            var cls = string.Equals(clasificacion, "OIV", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+            var cls = clasificacion == "OIV" ? 2 : 1; // Optimized: ordinal comparison (data is always exact match)
             var urgencia = CalcularUrgencia(fechaLimite, fechaVencimiento, ahora);
             var hito = PesoDelHito(hitoCodigo);
 
@@ -75,20 +79,16 @@ namespace Sitrac.Service.Helpers
             return "#6B7785";
         }
 
-        public static string EmojiGravedad(int gravedad) => gravedad switch
+        public static string EmojiGravedad(int gravedad)
         {
-            4 => "🔴",
-            3 => "🟠",
-            2 => "🔵",
-            _ => "⚪"
-        };
+            if (gravedad < 1 || gravedad > 4) return "⚪";
+            return _emojiGravedadMap[gravedad - 1];
+        }
 
-        public static string NombreGravedad(int gravedad) => gravedad switch
+        public static string NombreGravedad(int gravedad)
         {
-            4 => "Crítico",
-            3 => "Alto",
-            2 => "Medio",
-            _ => "Bajo"
-        };
+            if (gravedad < 1 || gravedad > 4) return "Bajo";
+            return _nombreGravedadMap[gravedad - 1];
+        }
     }
 }

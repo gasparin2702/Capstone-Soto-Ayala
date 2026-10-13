@@ -23,7 +23,7 @@ namespace Sitrac.Service
         private readonly ILogger<NotificacionService> _logger;
 
         private static readonly SemaphoreSlim _sendLock = new(1, 1);
-        private static DateTime _ultimoEnvio = DateTime.MinValue;
+        private static DateTime _nextAllowedSendTime = DateTime.MinValue;
 
         private static readonly HttpClient _httpClient = new HttpClient();
 
@@ -61,7 +61,7 @@ namespace Sitrac.Service
             }
 
             var asunto = $"[URGENTE] Nuevo Incidente Registrado - Ley N° 21.663 ({ticketId})";
-            var cuerpoHtml = ConstruirCuerpoEmailAsync(ticketId, sistema, horasSla);
+            var cuerpoHtml = ConstruirCuerpoEmail(ticketId, sistema, horasSla);
 
             return await EnviarEmailConReintentosAsync(destinatario, asunto, cuerpoHtml, ticketId, cancellationToken);
         }
@@ -139,6 +139,7 @@ namespace Sitrac.Service
         {
             int intento = 0;
             string ultimoError = string.Empty;
+            Random random = new Random();
 
             while (intento <= _smtpSettings.MaxReintentos)
             {
@@ -159,7 +160,14 @@ namespace Sitrac.Service
                         "[Notificacion][Email] Evento: FalloIntento Destinatario: {Destinatario} Ticket: {Ticket} Intento: {Intento}",
                         destinatario, ticketId, intento);
                     if (intento <= _smtpSettings.MaxReintentos)
-                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    {
+                        // Exponential backoff with jitter: min(2^attempt * 100ms, 10000ms) + random jitter (0-100ms)
+                        int baseDelayMs = 100;
+                        int maxDelayMs = 10000;
+                        int delayMs = Math.Min(baseDelayMs * (1 << (intento - 1)), maxDelayMs);
+                        int jitterMs = random.Next(0, 100);
+                        await Task.Delay(delayMs + jitterMs, cancellationToken);
+                    }
                 }
             }
 
@@ -174,13 +182,13 @@ namespace Sitrac.Service
             await _sendLock.WaitAsync(ct);
             try
             {
-                var desdeUltimo = (DateTime.UtcNow - _ultimoEnvio).TotalMilliseconds;
-                if (desdeUltimo < _smtpSettings.IntervaloEntreEnviosMs)
+                var ahora = DateTime.UtcNow;
+                if (ahora < _nextAllowedSendTime)
                 {
-                    var espera = (int)(_smtpSettings.IntervaloEntreEnviosMs - desdeUltimo);
+                    var espera = (int)(_nextAllowedSendTime - ahora).TotalMilliseconds;
                     await Task.Delay(espera, ct);
                 }
-                _ultimoEnvio = DateTime.UtcNow;
+                _nextAllowedSendTime = DateTime.UtcNow.Add(TimeSpan.FromMilliseconds(_smtpSettings.IntervaloEntreEnviosMs));
             }
             finally
             {
@@ -219,6 +227,18 @@ namespace Sitrac.Service
             catch { return false; }
         }
 
+        private class TeamsFact
+        {
+            public string title { get; set; }
+            public string value { get; set; }
+
+            public TeamsFact(string title, string value)
+            {
+                this.title = title;
+                this.value = value;
+            }
+        }
+
         private static object ConstruirPayloadTeamsAdaptiveCard(
             string ticketId,
             string sistema,
@@ -233,15 +253,15 @@ namespace Sitrac.Service
             var emojiGravedad = PrioridadCalculator.EmojiGravedad(gravedad);
             var nombreGravedad = PrioridadCalculator.NombreGravedad(gravedad);
 
-            var facts = new object[]
+            var facts = new TeamsFact[]
             {
-                new { title = "Ticket:",          value = ticketId },
-                new { title = "Prioridad:",       value = $"{etiqueta} ({prioridadScore:0.00})" },
-                new { title = "Gravedad:",        value = $"{emojiGravedad} {nombreGravedad}" },
-                new { title = "Clasificación:",   value = clasificacion },
-                new { title = "Estado actual:",   value = estado },
-                new { title = "Próximo hito:",    value = hitoPendiente },
-                new { title = "Sistema:",         value = sistema }
+                new TeamsFact("Ticket:", ticketId),
+                new TeamsFact("Prioridad:", $"{etiqueta} ({prioridadScore:0.00})"),
+                new TeamsFact("Gravedad:", $"{emojiGravedad} {nombreGravedad}"),
+                new TeamsFact("Clasificación:", clasificacion),
+                new TeamsFact("Estado actual:", estado),
+                new TeamsFact("Próximo hito:", hitoPendiente),
+                new TeamsFact("Sistema:", sistema)
             };
 
             return new
@@ -296,31 +316,33 @@ namespace Sitrac.Service
             };
         }
 
-        private static string ConstruirCuerpoEmailAsync(string ticketId, string sistema, int horasSla)
+        private static string ConstruirCuerpoEmail(string ticketId, string sistema, int horasSla)
         {
             var ticketSafe = System.Net.WebUtility.HtmlEncode(ticketId);
             var sistemaSafe = System.Net.WebUtility.HtmlEncode(sistema);
             var horasSafe = System.Net.WebUtility.HtmlEncode(horasSla.ToString());
 
-            return $@"
-<div style='font-family: Arial, sans-serif; max-width: 640px;'>
-  <div style='background:#0f1b2a;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0'>
-    <h2 style='margin:0'>SITRAC · ANCI — Alerta de Seguridad</h2>
-    <p style='margin:4px 0 0;font-size:12px;color:#a9b6c6'>Ley N° 21.663</p>
-  </div>
-  <div style='border:1px solid #d5dbdb;border-top:none;padding:20px;border-radius:0 0 8px 8px'>
-    <p>Se ha registrado un nuevo incidente que requiere evaluación inmediata.</p>
-    <table style='border-collapse:collapse;width:100%;margin-top:15px'>
-      <tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Ticket:</td>
-          <td style='padding:10px;border:1px solid #e9ebed'>{ticketSafe}</td></tr>
-      <tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Sistema:</td>
-          <td style='padding:10px;border:1px solid #e9ebed'>{sistemaSafe}</td></tr>
-      <tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Aviso Temprano:</td>
-          <td style='padding:10px;border:1px solid #e9ebed;color:#c4161c;font-weight:bold'>{horasSafe} horas</td></tr>
-    </table>
-    <p style='margin-top:20px'>Ingrese a la consola SITRAC para revisar el caso.</p>
-  </div>
-</div>";
+            var sb = new StringBuilder();
+            sb.Append("<div style='font-family: Arial, sans-serif; max-width: 640px;'>");
+            sb.Append("<div style='background:#0f1b2a;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0'>");
+            sb.Append("<h2 style='margin:0'>SITRAC · ANCI — Alerta de Seguridad</h2>");
+            sb.Append("<p style='margin:4px 0 0;font-size:12px;color:#a9b6c6'>Ley N° 21.663</p>");
+            sb.Append("</div>");
+            sb.Append("<div style='border:1px solid #d5dbdb;border-top:none;padding:20px;border-radius:0 0 8px 8px'>");
+            sb.Append("<p>Se ha registrado un nuevo incidente que requiere evaluación inmediata.</p>");
+            sb.Append("<table style='border-collapse:collapse;width:100%;margin-top:15px'>");
+            sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Ticket:</td>");
+            sb.Append("<td style='padding:10px;border:1px solid #e9ebed'>").Append(ticketSafe).Append("</td></tr>");
+            sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Sistema:</td>");
+            sb.Append("<td style='padding:10px;border:1px solid #e9ebed'>").Append(sistemaSafe).Append("</td></tr>");
+            sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Aviso Temprano:</td>");
+            sb.Append("<td style='padding:10px;border:1px solid #e9ebed;color:#c4161c;font-weight:bold'>").Append(horasSafe).Append(" horas</td></tr>");
+            sb.Append("</table>");
+            sb.Append("<p style='margin-top:20px'>Ingrese a la consola SITRAC para revisar el caso.</p>");
+            sb.Append("</div>");
+            sb.Append("</div>");
+
+            return sb.ToString();
         }
     }
 }

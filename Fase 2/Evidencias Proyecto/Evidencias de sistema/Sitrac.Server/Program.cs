@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using Sitrac.DataAccess;
 using Sitrac.Repository;
 using Sitrac.Repository.Interfaces;
@@ -6,6 +6,7 @@ using Sitrac.Service;
 using Sitrac.Service.Configuration;
 using Sitrac.Service.Interfaces;
 using EvolveDb;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,17 +21,30 @@ if (builder.Environment.IsDevelopment())
     builder.Configuration.AddUserSecrets<Program>(optional: true);
 }
 
-builder.Services.Configure<SmtpSettings>(
-    builder.Configuration.GetSection(SmtpSettings.SectionName));
+builder.Services.AddOptions<SmtpSettings>()
+    .Bind(builder.Configuration.GetSection(SmtpSettings.SectionName))
+    .Validate(settings =>
+        !string.IsNullOrWhiteSpace(settings.Host) &&
+        !string.IsNullOrWhiteSpace(settings.UserName) &&
+        !string.IsNullOrWhiteSpace(settings.Password),
+        "SMTP mal configurado: Host, UserName y Password son obligatorios")
+    .ValidateOnStart();
 
-builder.Services.Configure<TeamsSettings>(
-    builder.Configuration.GetSection(TeamsSettings.SectionName));
+builder.Services.AddOptions<TeamsSettings>()
+    .Bind(builder.Configuration.GetSection(TeamsSettings.SectionName))
+    .Validate(settings =>
+        !settings.Habilitado || !string.IsNullOrWhiteSpace(settings.WebhookUrl),
+        "Teams habilitado pero WebhookUrl vacÃ­o")
+    .ValidateOnStart();
 
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IIncidenteRepository, IncidenteRepository>();
 builder.Services.AddScoped<ISlaRepository, SlaRepository>();
 builder.Services.AddScoped<IIncidenteService, IncidenteService>();
 builder.Services.AddScoped<INotificacionService, NotificacionService>();
+builder.Services.AddScoped<IHitoRepository, HitoRepository>();
+builder.Services.AddScoped<IReglaEscalamientoRepository, ReglaEscalamientoRepository>();
+builder.Services.AddScoped<INotificacionLogRepository, NotificacionLogRepository>();
 
 builder.Services.AddHostedService<LifecycleAdvancerService>();
 
@@ -80,3 +94,4 @@ void EjecutarMigracionesEvolve(IConfiguration configuration)
         throw;
     }
 }
+

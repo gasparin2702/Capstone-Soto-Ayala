@@ -19,7 +19,7 @@ namespace Sitrac.Repository
         public async Task<AnciIncidente?> ObtenerPorIdAsync(long idIncidente)
         {
             using var connection = _connectionFactory.CreateConnection();
-            
+
             const string sql = @"
                 SELECT 
                     IdIncidente, FechaTomaConocimiento, FechaRegistroSistema, 
@@ -75,7 +75,7 @@ namespace Sitrac.Repository
             using var connection = _connectionFactory.CreateConnection();
             connection.Open();
             using var transaction = connection.BeginTransaction();
-            
+
             try
             {
                 const string sqlUpdate = @"
@@ -105,6 +105,7 @@ namespace Sitrac.Repository
             }
         }
 
+        // ===== FIX Bug A: agregado i.CodTipoEstadoIncidente al SELECT =====
         public async Task<IEnumerable<IncidenteResumen>> ObtenerActivosResumenAsync()
         {
             using var connection = _connectionFactory.CreateConnection();
@@ -112,6 +113,7 @@ namespace Sitrac.Repository
                 SELECT 
                     i.IdIncidente,
                     i.CodigoTicketInvgate,
+                    i.CodTipoEstadoIncidente,
                     c.NombreTipoCanalEntrada AS Origen,
                     e.NombreTipoClasificacionEmpresa AS Clasificacion,
                     g.OrdenTipoGravedad AS Gravedad,
@@ -127,7 +129,7 @@ namespace Sitrac.Repository
                 INNER JOIN TbAnciTipoEstadoIncidente est ON i.CodTipoEstadoIncidente = est.IdTipoEstadoIncidente
                 LEFT JOIN TbAnciIncidentePlazoSla sla ON i.IdIncidente = sla.IdIncidente
                 WHERE i.CodTipoEstadoIncidente < 4 AND i.AuditNotDeleted = 1";
-            
+
             return await connection.QueryAsync<IncidenteResumen>(sql);
         }
 
@@ -156,10 +158,11 @@ namespace Sitrac.Repository
                 INNER JOIN TbAnciTipoEstadoIncidente est ON i.CodTipoEstadoIncidente = est.IdTipoEstadoIncidente
                 LEFT JOIN TbAnciIncidentePlazoSla sla ON i.IdIncidente = sla.IdIncidente
                 WHERE i.IdIncidente = @IdIncidente AND i.AuditNotDeleted = 1";
-            
+
             return await connection.QueryFirstOrDefaultAsync<IncidenteDetalle>(sql, new { IdIncidente = idIncidente });
         }
 
+        // ===== Bug B revertido: usa IIF(r.IdResponsable = 1, 1, 0) porque IndEsAutomatico no existe =====
         public async Task<IEnumerable<EventoHistorialResumen>> ObtenerHistorialAsync(long idIncidente)
         {
             using var connection = _connectionFactory.CreateConnection();
@@ -184,7 +187,7 @@ namespace Sitrac.Repository
                 LEFT JOIN TbAnciTipoGravedad gNvo ON h.IdTipoGravedadNueva = gNvo.IdTipoGravedad
                 WHERE h.IdIncidente = @IdIncidente
                 ORDER BY h.FechaCambio DESC";
-            
+
             return await connection.QueryAsync<EventoHistorialResumen>(sql, new { IdIncidente = idIncidente });
         }
     }

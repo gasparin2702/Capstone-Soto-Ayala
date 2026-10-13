@@ -41,6 +41,6 @@ INSERT INTO TbAnciTipoCanalEntrada (NombreTipoCanalEntrada, DescripcionTipoCanal
 
 -- 7. Responsables Base (Equipo del proyecto y mandantes)
 INSERT INTO TbAnciResponsable (NombreResponsable, EmailResponsable, TelefonoResponsable, DescripcionRolOrganizacional, IndEsDelegadoCiberseguridad) VALUES 
-('Enzo Vadillo', 'Evadillo@ultraport.cl', '+56900000001', 'Jefe de Ciberseguridad', 1),
+('Enzo Badillo', 'Ebadillo@ultraport.cl', '+56900000001', 'Jefe de Ciberseguridad', 1),
 ('Gonzalo Crosier', 'GCrosier@ultraport.cl', '+56900000002', 'Delegado de Ciberseguridad', 1),
 ('Angelo Michell', ' AMichell@ultraport.cl', '+56900000003', 'Delegado de Ciberseguridad', 1);

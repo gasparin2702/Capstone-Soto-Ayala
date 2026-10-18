@@ -1,172 +1,202 @@
-[README.md](https://github.com/user-attachments/files/32878150/README.md)
 # SITRAC-ANCI
 
 **Sistema de Trazabilidad y Notificación Automática de Incidentes de Ciberseguridad a la ANCI**
 
-[![Estado](https://img.shields.io/badge/estado-Fase%201%20completada-brightgreen)](#-estado-y-cronograma)
-[![Metodología](https://img.shields.io/badge/metodolog%C3%ADa-Scrum-blue)](#-metodología)
-[![Normativa](https://img.shields.io/badge/normativa-Ley%2021.663-orange)](#-contexto-y-problema)
+[![Estado](https://img.shields.io/badge/estado-Fase%202%20en%20desarrollo-yellow)](#información-adicional)
+[![Metodología](https://img.shields.io/badge/metodolog%C3%ADa-Scrum-blue)](#5-metodología-de-trabajo)
+[![Normativa](https://img.shields.io/badge/normativa-Ley%2021.663-orange)](#1-descripción-del-proyecto)
+[![.NET](https://img.shields.io/badge/.NET-8-512BD4)](#2-tecnologías-utilizadas)
 
 🇪🇸 Español · [🇬🇧 English](README.en.md)
 
-> Proyecto CAPSTONE (PTY4614) de Ingeniería en Informática, DuocUC – Escuela de Informática y Telecomunicaciones, sede Valparaíso. Desarrollado en conjunto con la empresa mandante **UltraPort**.
+> Proyecto CAPSTONE 2026 (PTY4614) de Ingeniería en Informática, DuocUC – Escuela de Informática y Telecomunicaciones, sede Valparaíso. Desarrollado en conjunto con la empresa mandante **UltraPort**.
 
 ---
 
-## 📑 Tabla de contenidos
+## 1. Descripción del proyecto
 
-1. [Resumen](#-resumen)
-2. [Contexto y problema](#-contexto-y-problema)
-3. [Solución propuesta](#-solución-propuesta)
-4. [Objetivos](#-objetivos)
-5. [Alcances y limitaciones](#-alcances-y-limitaciones)
-6. [Stack tecnológico y arquitectura](#-stack-tecnológico-y-arquitectura)
-7. [Metodología](#-metodología)
-8. [Equipo y roles](#-equipo-y-roles)
-9. [Estado y cronograma](#-estado-y-cronograma)
-10. [Estructura del repositorio](#-estructura-del-repositorio)
-11. [Referencias](#-referencias)
+**¿Qué hace la solución?** SITRAC-ANCI recibe los incidentes de ciberseguridad de UltraPort (hoy, desde la plataforma **INVGATE** mediante webhook), centraliza su trazabilidad en una base de datos propia y **notifica automáticamente a los responsables** para que el incidente se informe a la **Agencia Nacional de Ciberseguridad (ANCI)** dentro de los plazos legales. Registra además la evidencia de cada aviso y de la respuesta de la ANCI, incluyendo los falsos positivos.
 
----
+**¿A quién va dirigida?** Al equipo de ciberseguridad y a los responsables de UltraPort (Enzo, Gonzalo y Ángelo), empresa de operaciones portuarias, que aprueban los envíos hacia la ANCI. Basta la aprobación de cualquiera de los tres.
 
-## 📌 Resumen
-
-UltraPort, empresa de operaciones portuarias, está obligada por la **Ley N° 21.663** a notificar todo incidente de ciberseguridad a la **Agencia Nacional de Ciberseguridad (ANCI)**. SITRAC-ANCI es un sistema que consume los tickets ya existentes en la plataforma **INVGATE**, centraliza la trazabilidad en una base de datos propia y **notifica automáticamente al responsable de turno** dentro del plazo legal.
-
-## ⚖️ Contexto y problema
-
-La Ley N° 21.663 exige notificar los incidentes de ciberseguridad a la ANCI en los siguientes plazos:
+**¿Qué problema resuelve?** La **Ley N° 21.663** obliga a notificar los incidentes a la ANCI en plazos estrictos:
 
 | Hito | Plazo |
 | --- | --- |
-| Notificación inicial | Máximo **3 horas** desde la toma de conocimiento |
-| Reporte de actualización | **72 horas** |
+| Notificación inicial (aviso temprano) | Máximo **3 horas** desde la toma de conocimiento |
+| Informe preliminar | **72 horas** (UltraPort es empresa esencial); **24 horas** si pasara a OIV, como parámetro configurable |
 | Informe final | **15 días** |
 
-Hoy la detección y el aviso dependen de canales dispersos (SOC, firewalls, correos, tickets de INVGATE), sin un mecanismo unificado ni trazable que garantice el cumplimiento de estos plazos.
+Hoy la detección y el aviso dependen de canales dispersos (SOC, firewalls, correos, tickets de INVGATE), sin un mecanismo unificado ni trazable. Un antecedente reciente lo evidenció: un aviso proactivo de la ANCI sobre un firewall vulnerado, vinculado indirectamente a UltraPort, no derivó en un ticket ni en trazabilidad formal, lo que expone a la empresa a un riesgo real de incumplimiento normativo.
 
-Un antecedente reciente lo evidenció: un aviso proactivo de la propia ANCI sobre un firewall vulnerado, vinculado indirectamente a UltraPort, no derivó en un ticket ni en trazabilidad formal. Esto expone a la empresa a un riesgo real de incumplimiento normativo.
+**Objetivo general:** automatizar la trazabilidad y notificación de incidentes de ciberseguridad de UltraPort a la ANCI, garantizando el cumplimiento de los plazos de la Ley N° 21.663.
 
-## 💡 Solución propuesta
+## 2. Tecnologías utilizadas
 
-Un sistema que:
+- **Lenguajes:** C# (.NET 8), T-SQL, HTML, CSS y JavaScript
+- **Frameworks y librerías:** ASP.NET Core (.NET 8), Dapper (acceso a datos) y Evolve (migraciones de base de datos)
+- **Base de datos:** SQL Server
+- **Cloud / Infraestructura:** despliegue en servidores propios de UltraPort, **sin exposición a internet**. Integraciones con INVGATE (webhook), SMTP y Microsoft Teams
+- **Herramientas de gestión:** GitHub (control de versiones) y Trello (tablero Scrum)
 
-1. **Consume** los tickets de incidentes de seguridad existentes en INVGATE mediante su API.
-2. **Centraliza** la información y su trazabilidad en una base de datos propia.
-3. **Notifica automáticamente** al responsable de turno dentro de los plazos críticos de la normativa.
-4. **Registra la evidencia** de cada aviso enviado y de la respuesta de la ANCI, incluyendo falsos positivos.
+> **Cambio respecto a la Fase 1:** el stack preliminar incluía Node.js y Angular. Al conocer las especificaciones de UltraPort, se ajustó a su Catálogo de Tecnologías Autorizadas.
+>
+> ⚠️ **Nota sobre .NET 8:** su uso es un estándar obligatorio definido por UltraPort. El equipo advirtió a UltraPort, en reunión presencial el 16 de septiembre de 2026, que .NET 8 llega a fin de soporte el 10 de noviembre de 2026; UltraPort se hará cargo de la situación.
 
-## 🎯 Objetivos
+## 3. Instrucciones para ejecutar el proyecto localmente
 
-**Objetivo general**
+**Requisitos:** SDK de .NET 8 (versión fijada en `global.json`) y SQL Server (Express es suficiente).
 
-Automatizar la trazabilidad y notificación de incidentes de ciberseguridad de UltraPort a la ANCI, garantizando el cumplimiento de los plazos establecidos por la Ley N° 21.663.
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/<usuario>/<repositorio>.git
+cd "<repositorio>/Fase 2/Evidencias Proyecto/Evidencias de sistema"
 
-**Objetivos específicos**
+# 2. Configurar la conexión y los canales de notificación
+#    Editar Sitrac.Server/appsettings.Development.json
+#    (cadena de conexión a SQL Server y configuración de SMTP y Teams)
 
-- Consumir y centralizar, vía API de INVGATE, la información de tickets de incidentes de seguridad ya existentes.
-- Implementar una base de datos propia (SQL Server, migraciones con Evolve) que centralice la trazabilidad.
-- Notificar automáticamente al responsable de turno dentro de los plazos críticos exigidos por la normativa.
-- Registrar la evidencia de cada aviso enviado y de la respuesta de la ANCI, incluyendo falsos positivos.
-- Desplegar y documentar el sistema conforme a los estándares de seguridad de UltraPort.
+# 3. Crear el esquema y poblar los catálogos
+#    Ejecutar los scripts de Sitrac.DbMigration (V0001 a V0006) con Evolve
 
-## 🔎 Alcances y limitaciones
-
-**Alcances**
-
-- MVP acotado a un flujo específico de trazabilidad y notificación de incidentes a la ANCI, dentro de las 18 semanas de CAPSTONE (10 de agosto al 12 de diciembre de 2026).
-- Integración con la API de INVGATE y despliegue en servidores propios de UltraPort, **sin exposición a internet**.
-- Stack tecnológico ya definido por la organización.
-
-**Limitaciones**
-
-- El mandante advirtió que el alcance completo probablemente requiera más de una iteración; se mitiga acotando el MVP a un flujo bien definido.
-- Dependencia de la entrega de bases técnicas por parte de UltraPort (ERS y diagramas de arquitectura), pendiente a la fecha del informe de la Fase 1.
-- La jornada actual es de 2 horas diarias; la migración a jornada de oficina (9:00–17:00) para el desarrollo intensivo aún no está formalizada con UltraPort ni con la coordinación de práctica.
-
-## 🛠️ Stack tecnológico y arquitectura
-
-| Tecnología | Uso en el proyecto |
-| --- | --- |
-| **.NET Core** | Backend de integración con INVGATE |
-| **Node.js** | Temporizadores y flujos de notificación |
-| **Angular** | Panel de trazabilidad y notificaciones |
-| **SQL Server** | Base de datos propia, con migraciones mediante Evolve |
-| **API de INVGATE** | Origen de los tickets de incidentes |
-| **Cuentas Microsoft** | Autenticación |
-
-**Flujo general (preliminar, sujeto a validación con las bases técnicas de UltraPort):**
-
-```mermaid
-flowchart LR
-    A[INVGATE<br/>tickets de incidentes] -->|API| B[Backend de integración<br/>.NET Core]
-    B --> C[(SQL Server<br/>trazabilidad)]
-    C --> D[Temporizadores y notificaciones<br/>Node.js]
-    D -->|aviso dentro del plazo legal| E[Responsable de turno]
-    C --> F[Panel de trazabilidad<br/>Angular]
+# 4. Levantar el servidor
+dotnet run --project Sitrac.Server
 ```
 
-> Despliegue en servidores propios de UltraPort, sin exposición a internet.
+- **Puertos:** se definen en `Sitrac.Server/Properties/launchSettings.json`.
+- **Pruebas de la API:** el archivo `Sitrac.Server/Sitrac.Server.http` contiene ejemplos de solicitudes.
+- **Frontend:** `Sitrac.Frontend/index.html` consume la API del servidor.
+- **Credenciales:** el repositorio no incluye credenciales reales. Los datos de conexión y de SMTP/Teams deben configurarse localmente.
 
-## 🔄 Metodología
+## 4. Integrantes del equipo y roles
 
-El proyecto se desarrolla con **Scrum**, con sprints alineados a las semanas de CAPSTONE:
+| Integrante | Rol |
+| --- | --- |
+| Ayala López, Rodrigo | Gestión de Proyecto y Cumplimiento Normativo: backlog, seguimiento de la Ley N° 21.663, coordinación con UltraPort y facilitación de sprints |
+| Soto Aguilar, Benjamín | Desarrollo Backend: backend, arquitectura y pruebas del sistema |
 
-1. Levantamiento y formalización de requisitos (ERS bajo el estándar IEEE 830).
-2. Diseño de arquitectura y modelo de datos.
-3. Desarrollo iterativo del backend de integración con INVGATE.
-4. Pruebas, documentación y presentación final.
-
-**¿Por qué Scrum?**
-
-- Permite incorporar en cada sprint la información que UltraPort entrega de forma progresiva.
-- El mandante ya anticipó más de una iteración, lo que calza con el modelo incremental.
-- El equipo cuenta con certificación SCRUM-ITF.
-
-**Metodologías descartadas:** el enfoque tradicional (SDLC/RUP) exige mucha documentación formal previa, incompatible con requisitos que evolucionan en cada reunión; Design Thinking está orientado a la empatía con el usuario final y no aplica a una integración backend gobernada por requisitos normativos.
-
-## 👥 Equipo y roles
-
-| Integrante | Rol | Responsabilidades |
-| --- | --- | --- |
-| **Rodrigo Ayala López** | Gestión de Proyecto y Cumplimiento Normativo | Gestión del backlog, seguimiento de la normativa (Ley N° 21.663), coordinación con UltraPort y facilitación de sprints |
-| **Benjamín Soto Aguilar** | Desarrollo Backend | Backend de integración (API de INVGATE y temporizadores), arquitectura y pruebas del sistema |
-
-Ambos participan en los flujos de comunicación, la arquitectura, las pruebas, las retrospectivas y las presentaciones.
+Ambos participan en la arquitectura, las pruebas, las retrospectivas y las presentaciones, sin jerarquía entre ellos.
 
 - **Empresa mandante:** UltraPort (contrapartes: Enzo Vadillo y Gonzalo Crosier)
 - **Docente guía:** María Ignacia Cobo
 
-## 📅 Estado y cronograma
+## 5. Metodología de trabajo
+
+El proyecto se desarrolla con **Scrum**, con sprints alineados a las semanas de CAPSTONE (10 de agosto al 12 de diciembre de 2026). La gestión se realiza en un **tablero de Trello** con el Product Backlog y el Sprint Backlog.
+
+**Ceremonias:** planificación de sprint, Sprint Review con el mandante y retrospectiva.
+
+**Etapas:**
+
+1. Levantamiento y formalización de requisitos (ERS bajo el estándar IEEE 830).
+2. Diseño de arquitectura y modelo de datos.
+3. Desarrollo iterativo del backend y la plataforma de trazabilidad.
+4. Pruebas, documentación y presentación final.
+
+**¿Por qué Scrum?** Permite incorporar en cada sprint la información que UltraPort entrega de forma progresiva, el mandante anticipó más de una iteración y el equipo cuenta con certificación SCRUM-ITF. Se descartaron el enfoque tradicional (SDLC/RUP), por su documentación previa incompatible con requisitos cambiantes, y Design Thinking, por no aplicar a una integración backend gobernada por normativa.
+
+La evidencia de la gestión Scrum está en [`Fase 2/Evidencias Proyecto/Evidencias de documentacion`](<Fase 2/Evidencias Proyecto/Evidencias de documentacion>).
+
+## 6. Arquitectura de la solución
+
+Backend por capas en .NET 8, con base de datos SQL Server versionada mediante migraciones:
+
+```mermaid
+flowchart LR
+    A[INVGATE<br/>webhook] --> B[Sitrac.Server<br/>API / Controllers]
+    B --> C[Sitrac.Service<br/>reglas de negocio, SLA, notificaciones]
+    C --> D[Sitrac.Repository<br/>Dapper]
+    D --> E[Sitrac.DataAccess<br/>conexión]
+    E --> F[(SQL Server<br/>Proyecto_SITRAC)]
+    G[Sitrac.DbMigration<br/>Evolve] -->|esquema y catálogos| F
+    H[Sitrac.Frontend<br/>HTML/CSS/JS] --> B
+    C -->|aviso dentro del plazo legal| I[Responsables de UltraPort]
+```
+
+| Proyecto | Responsabilidad |
+| --- | --- |
+| `Sitrac.Server` | API y recepción de incidentes (controllers) |
+| `Sitrac.Service` | Reglas de negocio, cálculo de prioridad, avance del ciclo de vida del incidente y notificaciones |
+| `Sitrac.Repository` | Modelos y repositorios (incidentes, hitos, SLA, reglas de escalamiento y log de notificaciones) |
+| `Sitrac.DataAccess` | Fábrica de conexiones a la base de datos |
+| `Sitrac.DbMigration` | Scripts de migración versionados |
+| `Sitrac.Frontend` | Interfaz web (HTML, CSS y JS nativo) |
+
+**Flujos de negocio** (aceptados por UltraPort):
+
+| Flujo 1: detección y aviso temprano | Flujo 2: respuesta ANCI y confirmación interna | Flujo 3: informe preliminar, final y estado |
+| --- | --- | --- |
+| ![Flujo 1](<Fase 2/Evidencias Proyecto/Evidencias de documentacion/Flujo1.png>) | ![Flujo 2](<Fase 2/Evidencias Proyecto/Evidencias de documentacion/Flujo2.png>) | ![Flujo 3](<Fase 2/Evidencias Proyecto/Evidencias de documentacion/Flujo3.png>) |
+
+**Puntos de entrada de incidentes:** ticket de INVGATE, correo entrante de la ANCI, registro vía Microsoft Teams, correo del equipo de ciberseguridad y registro manual en SITRAC (obligatorios: correo y Teams).
+
+El detalle técnico está en [`ARCHITECTURE_REFERENCE.md`](ARCHITECTURE_REFERENCE.md).
+
+---
+
+### Sección de innovación (documento de cierre)
+
+- **¿Qué problema resuelve?** Elimina la dependencia de canales dispersos y de avisos manuales para cumplir los plazos de 3 horas, 72 horas y 15 días de la Ley N° 21.663, y deja trazabilidad formal de cada incidente.
+- **¿Qué hace diferente a la solución?** Unifica en un solo flujo trazable los distintos puntos de entrada de incidentes, calcula los plazos SLA de forma automática con parámetros configurables y permite que cualquiera de los responsables apruebe el envío desde un enlace directo a la plataforma.
+- **¿Qué valor agrega?** Reduce el riesgo de incumplimiento normativo, entrega evidencia auditable de cada aviso y respuesta, y acelera la reacción ante un incidente, alineada al stack y a los estándares de UltraPort.
+
+---
+
+## Información adicional
+
+### Estado y cronograma
 
 | Fase | Contenido | Estado |
 | --- | --- | --- |
-| **Fase 1** | Definición del proyecto APT: Product Backlog, ERS de apoyo, informe técnico y presentación de la idea de proyecto | ✅ Completada |
-| **Fase 2** | Desarrollo: Sprint 1 (parámetros de UltraPort, base de datos y entorno de trabajo) y Sprint 2 (backend, API de INVGATE y notificaciones), más Sprint Review e informe de avance | 🚧 En desarrollo |
+| **Fase 1** | Definición del proyecto APT: Product Backlog, ERS de apoyo, informe técnico y presentación de la idea | ✅ Completada |
+| **Fase 2** | Sprint 1 (parámetros de UltraPort, base de datos y entorno) y Sprint 2 (backend, recepción de incidentes y notificaciones), más Sprint Review e informe de avance | 🚧 En desarrollo |
 | **Fase 3** | Pruebas de certificación y cierre del proyecto | ⏳ Pendiente |
 
-La documentación de las Fases 2 y 3 se irá publicando en este repositorio a medida que avance el proyecto.
+**Avance de la Fase 2**
 
-## 📂 Estructura del repositorio
+| Componente | Estado |
+| --- | --- |
+| Modelo de datos normalizado y diccionario de datos | ✅ |
+| Migraciones Evolve `V0001` a `V0006` | ✅ |
+| Backend por capas (.NET 8) y recepción por webhook | 🚧 |
+| Cálculo de prioridad y plazos SLA | 🚧 |
+| Frontend (registro y seguimiento) | 🚧 |
+| Envío de notificaciones (SMTP / Teams) | ⏳ |
+| Integración completa con INVGATE (a la espera de credenciales de UltraPort) | ⏳ |
+
+### Alcances y limitaciones
+
+- MVP acotado a un flujo específico de trazabilidad y notificación, dentro de las 18 semanas de CAPSTONE.
+- El mandante advirtió que el alcance completo probablemente requiera más de una iteración; se mitiga acotando el MVP.
+- Las credenciales y la API de INVGATE aún no han sido entregadas, por lo que hoy los incidentes ingresan solo por webhook.
+- La jornada actual es de 2 horas diarias; la migración a jornada de oficina (9:00–17:00) aún no está formalizada.
+
+### Estructura del repositorio
 
 ```text
 .
 ├── Fase 1/
-│   ├── Evidencias Grupales/      # Informe técnico, presentación y guía de la fase
-│   └── Evidencias Individuales/  # Autoevaluaciones y diarios de reflexión de cada integrante
-├── Fase 2/                       # En desarrollo
-├── Fase 3/                       # Pendiente
-├── README.md                     # Versión en español
-└── README.en.md                  # English version
+│   ├── Evidencias Grupales/
+│   └── Evidencias Individuales/
+├── Fase 2/
+│   ├── Evidencias Grupales/
+│   ├── Evidencias Individuales/
+│   └── Evidencias Proyecto/
+│       ├── Evidencias de documentacion/  # Diccionario de datos, flujos, gestión Scrum, modelo normalizado
+│       └── Evidencias de sistema/        # Solución .NET (Sitrac.sln)
+│           ├── Sitrac.DataAccess/
+│           ├── Sitrac.DbMigration/       # Scripts V0001–V0006
+│           ├── Sitrac.Frontend/
+│           ├── Sitrac.Repository/
+│           ├── Sitrac.Server/
+│           ├── Sitrac.Service/
+│           └── ARCHITECTURE_REFERENCE.md
+├── Fase 3/                               # Pendiente
+├── README.md                             # Versión en español
+└── README.en.md                          # English version
 ```
 
-**Documentos principales de la Fase 1** (en [`Fase 1/Evidencias Grupales`](<Fase 1/Evidencias Grupales>)):
-
-- Informe técnico «Definición del Proyecto APT – Fase 1» (30 de agosto de 2026).
-- Presentación «SITRAC-ANCI – Fase 1: Exposición de la idea de proyecto».
-- Guía del estudiante de la Fase 1 (español e inglés) y planilla de evaluación.
-
-## 📚 Referencias
+### Referencias
 
 - Ministerio del Interior y Seguridad Pública. (2024, 8 de abril). *Ley 21.663: Ley marco de ciberseguridad e infraestructura crítica de la información*. Diario Oficial de la República de Chile. https://www.bcn.cl/leychile/navegar?idNorma=1202434
 - Agencia Nacional de Ciberseguridad. (s.f.). *ANCI*. Gobierno de Chile. https://www.anci.gob.cl/

@@ -49,7 +49,7 @@ Hoy la detección y el aviso dependen de canales dispersos (SOC, firewalls, corr
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/<usuario>/<repositorio>.git
+git clone https://github.com/gasparin2702/Capstone-Soto-Ayala
 cd "<repositorio>/Fase 2/Evidencias Proyecto/Evidencias de sistema"
 
 # 2. Configurar la conexión y los canales de notificación

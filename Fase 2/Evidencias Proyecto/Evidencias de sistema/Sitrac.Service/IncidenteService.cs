@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -39,7 +39,7 @@ namespace Sitrac.Service
 
         public async Task<long> RegistrarIncidenteInvgateAsync(CrearIncidenteRequest request)
         {
-            var nuevoIncidente = new AnciIncidente
+            var nuevoIncidente = new SitracIncidente
             {
                 CodigoTicketInvgate = request.CodigoTicketInvgate,
                 FechaTomaConocimiento = request.FechaTomaConocimiento,
@@ -55,10 +55,10 @@ namespace Sitrac.Service
             var idGenerado = await _incidenteRepository.InsertarAsync(nuevoIncidente);
             var parametrosSla = await _slaRepository.ObtenerParametrosPorEmpresaAsync(request.CodTipoClasificacionEmpresa);
 
-            AnciIncidentePlazoSla? plazos = null;
+            SitracIncidentePlazoSla? plazos = null;
             if (parametrosSla != null)
             {
-                plazos = new AnciIncidentePlazoSla
+                plazos = new SitracIncidentePlazoSla
                 {
                     IdIncidente = idGenerado,
                     IdTipoPlazoSla = parametrosSla.IdTipoPlazoSla,
@@ -104,7 +104,7 @@ namespace Sitrac.Service
         private async Task IntentarNotificarTeamsAsync(
             long idIncidente,
             CrearIncidenteRequest request,
-            AnciIncidentePlazoSla? plazos,
+            SitracIncidentePlazoSla? plazos,
             int horasSla,
             bool esCreacion)
         {
@@ -171,25 +171,25 @@ namespace Sitrac.Service
                 if (inc.CodTipoEstadoIncidente == 1 && ahora >= inc.FechaLimiteAvisoTemprano)
                 {
                     nuevoEstado = 2;
-                    comentarioCambio = "Avance automático a Aviso Enviado por vencimiento de SLA (3 horas).";
+                    comentarioCambio = "Avance automÃ¡tico a Aviso Enviado por vencimiento de SLA (3 horas).";
                     hitoPendiente = "Aviso Temprano";
                 }
                 else if (inc.CodTipoEstadoIncidente == 2 && ahora >= inc.FechaLimiteInformePreliminar)
                 {
                     nuevoEstado = 3;
-                    comentarioCambio = "Avance automático a Preliminar Enviado por vencimiento de SLA.";
+                    comentarioCambio = "Avance automÃ¡tico a Preliminar Enviado por vencimiento de SLA.";
                     hitoPendiente = "Informe Preliminar";
                 }
                 else if (inc.CodTipoEstadoIncidente == 3 && ahora >= inc.FechaLimiteInformeFinal)
                 {
                     nuevoEstado = 4;
-                    comentarioCambio = "Cierre automático de incidente por vencimiento de SLA (15 días).";
+                    comentarioCambio = "Cierre automÃ¡tico de incidente por vencimiento de SLA (15 dÃ­as).";
                     hitoPendiente = "Informe Final";
                 }
 
                 if (nuevoEstado > 0)
                 {
-                    var historial = new AnciEventoHistorial
+                    var historial = new SitracEventoHistorial
                     {
                         IdIncidente = inc.IdIncidente,
                         CodigoTicketInvgate = inc.CodigoTicketInvgate,
@@ -259,7 +259,7 @@ namespace Sitrac.Service
                 estado: estadoTexto,
                 prioridadScore: score,
                 hitoPendiente: hitoPendiente,
-                razon: "Plazo vencido: el motor avanzó el estado automáticamente");
+                razon: "Plazo vencido: el motor avanzÃ³ el estado automÃ¡ticamente");
 
             if (!resultado.Exito)
                 _logger.LogWarning(

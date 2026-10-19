@@ -1,6 +1,6 @@
-namespace Sitrac.Repository.Models
+﻿namespace Sitrac.Repository.Models
 {
-    public class AnciTipoPlazoSla
+    public class SitracTipoPlazoSla
     {
         public long IdTipoPlazoSla { get; set; }
         public long CodTipoClasificacionEmpresa { get; set; }

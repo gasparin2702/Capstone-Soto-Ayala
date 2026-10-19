@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 
 namespace Sitrac.Repository.Models
 {
-    public class AnciIncidentePlazoSla
+    public class SitracIncidentePlazoSla
     {
         public long IdIncidente { get; set; }
         public long IdTipoPlazoSla { get; set; }

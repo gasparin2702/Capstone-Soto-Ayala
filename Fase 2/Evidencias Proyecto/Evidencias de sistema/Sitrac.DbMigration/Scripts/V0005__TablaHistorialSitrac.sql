@@ -1,19 +1,19 @@
--- ==============================================================================
--- SISTEMA: SITRAC-ANCI
+﻿-- ==============================================================================
+-- SISTEMA: SITRAC
 -- OBJETIVO: Creación de tabla de trazabilidad (Historial) y catálogo
 -- ==============================================================================
 
-CREATE TABLE TbAnciTipoAmbitoCambio(
+CREATE TABLE TbSitracTipoAmbitoCambio(
     IdTipoAmbitoCambio bigint NOT NULL,
     NombreAmbitoCambio varchar(50) NOT NULL,
-    AuditNotDeleted bit NOT NULL CONSTRAINT DF_TbAnciTipoAmbitoCambio_AuditNotDeleted DEFAULT ((1)),
-    AuditCreateDate datetime NOT NULL CONSTRAINT DF_TbAnciTipoAmbitoCambio_AuditCreateDate DEFAULT (getdate()),
+    AuditNotDeleted bit NOT NULL CONSTRAINT DF_TbSitracTipoAmbitoCambio_AuditNotDeleted DEFAULT ((1)),
+    AuditCreateDate datetime NOT NULL CONSTRAINT DF_TbSitracTipoAmbitoCambio_AuditCreateDate DEFAULT (getdate()),
     AuditLastUpdateDate datetime NULL,
     AuditUserLastUpdate varchar(100) NULL,
-    CONSTRAINT PK_TbAnciTipoAmbitoCambio PRIMARY KEY CLUSTERED (IdTipoAmbitoCambio ASC)
+    CONSTRAINT PK_TbSitracTipoAmbitoCambio PRIMARY KEY CLUSTERED (IdTipoAmbitoCambio ASC)
 );
 
-CREATE TABLE TbAnciEventoHistorial(
+CREATE TABLE TbSitracEventoHistorial(
     IdEventoHistorial bigint IDENTITY(1,1) NOT NULL,
     IdIncidente bigint NOT NULL,
     CodigoTicketInvgate varchar(50) NOT NULL,
@@ -25,22 +25,22 @@ CREATE TABLE TbAnciEventoHistorial(
     IdTipoGravedadAnterior bigint NULL,
     IdTipoGravedadNueva bigint NULL,
     IdResponsableCambia bigint NOT NULL,
-    FechaCambio datetime NOT NULL CONSTRAINT DF_TbAnciEventoHistorial_FechaCambio DEFAULT (getdate()),
+    FechaCambio datetime NOT NULL CONSTRAINT DF_TbSitracEventoHistorial_FechaCambio DEFAULT (getdate()),
     Comentario varchar(1000) NULL,
-    AuditNotDeleted bit NOT NULL CONSTRAINT DF_TbAnciEventoHistorial_AuditNotDeleted DEFAULT ((1)),
-    AuditCreateDate datetime NOT NULL CONSTRAINT DF_TbAnciEventoHistorial_AuditCreateDate DEFAULT (getdate()),
+    AuditNotDeleted bit NOT NULL CONSTRAINT DF_TbSitracEventoHistorial_AuditNotDeleted DEFAULT ((1)),
+    AuditCreateDate datetime NOT NULL CONSTRAINT DF_TbSitracEventoHistorial_AuditCreateDate DEFAULT (getdate()),
     AuditLastUpdateDate datetime NULL,
     AuditUserLastUpdate varchar(100) NULL,
-    CONSTRAINT PK_TbAnciEventoHistorial PRIMARY KEY CLUSTERED (IdEventoHistorial ASC),
-    CONSTRAINT FK_EventoHistorial_TipoAmbitoCambio FOREIGN KEY(IdTipoAmbitoCambio) REFERENCES TbAnciTipoAmbitoCambio (IdTipoAmbitoCambio),
-    CONSTRAINT FK_EventoHistorial_Incidente FOREIGN KEY(IdIncidente) REFERENCES TbAnciIncidente (IdIncidente),
-    CONSTRAINT FK_EventoHistorial_EstadoIncAnterior FOREIGN KEY(IdTipoEstadoIncidenteAnterior) REFERENCES TbAnciTipoEstadoIncidente (IdTipoEstadoIncidente),
-    CONSTRAINT FK_EventoHistorial_EstadoIncNuevo FOREIGN KEY(IdTipoEstadoIncidenteNuevo) REFERENCES TbAnciTipoEstadoIncidente (IdTipoEstadoIncidente),
-    CONSTRAINT FK_EventoHistorial_GravedadAnterior FOREIGN KEY(IdTipoGravedadAnterior) REFERENCES TbAnciTipoGravedad (IdTipoGravedad),
-    CONSTRAINT FK_EventoHistorial_GravedadNueva FOREIGN KEY(IdTipoGravedadNueva) REFERENCES TbAnciTipoGravedad (IdTipoGravedad),
-    CONSTRAINT FK_EventoHistorial_ResponsableCambia FOREIGN KEY(IdResponsableCambia) REFERENCES TbAnciResponsable (IdResponsable)
+    CONSTRAINT PK_TbSitracEventoHistorial PRIMARY KEY CLUSTERED (IdEventoHistorial ASC),
+    CONSTRAINT FK_EventoHistorial_TipoAmbitoCambio FOREIGN KEY(IdTipoAmbitoCambio) REFERENCES TbSitracTipoAmbitoCambio (IdTipoAmbitoCambio),
+    CONSTRAINT FK_EventoHistorial_Incidente FOREIGN KEY(IdIncidente) REFERENCES TbSitracIncidente (IdIncidente),
+    CONSTRAINT FK_EventoHistorial_EstadoIncAnterior FOREIGN KEY(IdTipoEstadoIncidenteAnterior) REFERENCES TbSitracTipoEstadoIncidente (IdTipoEstadoIncidente),
+    CONSTRAINT FK_EventoHistorial_EstadoIncNuevo FOREIGN KEY(IdTipoEstadoIncidenteNuevo) REFERENCES TbSitracTipoEstadoIncidente (IdTipoEstadoIncidente),
+    CONSTRAINT FK_EventoHistorial_GravedadAnterior FOREIGN KEY(IdTipoGravedadAnterior) REFERENCES TbSitracTipoGravedad (IdTipoGravedad),
+    CONSTRAINT FK_EventoHistorial_GravedadNueva FOREIGN KEY(IdTipoGravedadNueva) REFERENCES TbSitracTipoGravedad (IdTipoGravedad),
+    CONSTRAINT FK_EventoHistorial_ResponsableCambia FOREIGN KEY(IdResponsableCambia) REFERENCES TbSitracResponsable (IdResponsable)
 );
 
 -- Inyección del catálogo base
-INSERT INTO TbAnciTipoAmbitoCambio (IdTipoAmbitoCambio, NombreAmbitoCambio, AuditNotDeleted, AuditCreateDate) 
+INSERT INTO TbSitracTipoAmbitoCambio (IdTipoAmbitoCambio, NombreAmbitoCambio, AuditNotDeleted, AuditCreateDate) 
 VALUES (1, 'Cambio de Estado Automático SLA', 1, GETDATE());

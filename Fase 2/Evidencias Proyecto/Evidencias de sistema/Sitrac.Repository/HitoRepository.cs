@@ -21,12 +21,12 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                INSERT INTO TbAnciHito (
+                INSERT INTO TbSitracHito (
                     IdIncidente, CodTipoHito, Secuencia, FechaBase, FechaLimite, Estado,
-                    FechaCumplimiento, ReferenciaANCI
+                    FechaCumplimiento, ReferenciaExterna
                 ) VALUES (
                     @IdIncidente, @CodTipoHito, @Secuencia, @FechaBase, @FechaLimite, @Estado,
-                    @FechaCumplimiento, @ReferenciaANCI
+                    @FechaCumplimiento, @ReferenciaExterna
                 );
                 SELECT CAST(SCOPE_IDENTITY() as bigint);";
 
@@ -38,9 +38,9 @@ namespace Sitrac.Repository
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 SELECT IdHito, IdIncidente, CodTipoHito, Secuencia, FechaBase, FechaLimite, Estado,
-                       FechaCumplimiento, ReferenciaANCI, UltimaReglaNotificada, ProximaNotificacionAt,
+                       FechaCumplimiento, ReferenciaExterna, UltimaReglaNotificada, ProximaNotificacionAt,
                        ConteoNotificaciones, SilenciadoHasta
-                FROM TbAnciHito
+                FROM TbSitracHito
                 WHERE IdHito = @IdHito AND AuditNotDeleted = 1";
 
             return await connection.QueryFirstOrDefaultAsync<Hito>(sql, new { IdHito = idHito });
@@ -51,9 +51,9 @@ namespace Sitrac.Repository
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 SELECT IdHito, IdIncidente, CodTipoHito, Secuencia, FechaBase, FechaLimite, Estado,
-                       FechaCumplimiento, ReferenciaANCI, UltimaReglaNotificada, ProximaNotificacionAt,
+                       FechaCumplimiento, ReferenciaExterna, UltimaReglaNotificada, ProximaNotificacionAt,
                        ConteoNotificaciones, SilenciadoHasta
-                FROM TbAnciHito
+                FROM TbSitracHito
                 WHERE IdIncidente = @IdIncidente AND AuditNotDeleted = 1
                 ORDER BY CodTipoHito ASC, Secuencia ASC";
 
@@ -65,9 +65,9 @@ namespace Sitrac.Repository
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 SELECT IdHito, IdIncidente, CodTipoHito, Secuencia, FechaBase, FechaLimite, Estado,
-                       FechaCumplimiento, ReferenciaANCI, UltimaReglaNotificada, ProximaNotificacionAt,
+                       FechaCumplimiento, ReferenciaExterna, UltimaReglaNotificada, ProximaNotificacionAt,
                        ConteoNotificaciones, SilenciadoHasta
-                FROM TbAnciHito
+                FROM TbSitracHito
                 WHERE Estado = 'Pendiente'
                   AND AuditNotDeleted = 1
                   AND (SilenciadoHasta IS NULL OR SilenciadoHasta <= GETUTCDATE())";
@@ -80,9 +80,9 @@ namespace Sitrac.Repository
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 SELECT TOP 1 IdHito, IdIncidente, CodTipoHito, Secuencia, FechaBase, FechaLimite, Estado,
-                       FechaCumplimiento, ReferenciaANCI, UltimaReglaNotificada, ProximaNotificacionAt,
+                       FechaCumplimiento, ReferenciaExterna, UltimaReglaNotificada, ProximaNotificacionAt,
                        ConteoNotificaciones, SilenciadoHasta
-                FROM TbAnciHito
+                FROM TbSitracHito
                 WHERE IdIncidente = @IdIncidente
                   AND CodTipoHito = @CodTipoHito
                   AND Estado = 'Pendiente'
@@ -98,7 +98,7 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                UPDATE TbAnciHito
+                UPDATE TbSitracHito
                 SET UltimaReglaNotificada = @IdRegla,
                     ProximaNotificacionAt = @ProximaNotificacion,
                     ConteoNotificaciones = ConteoNotificaciones + 1,
@@ -126,10 +126,10 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                UPDATE TbAnciHito
+                UPDATE TbSitracHito
                 SET Estado = 'Cumplido',
                     FechaCumplimiento = @FechaCumplimiento,
-                    ReferenciaANCI = @ReferenciaANCI,
+                    ReferenciaExterna = @ReferenciaExterna,
                     AuditLastUpdateDate = GETUTCDATE()
                 WHERE IdHito = @IdHito AND Estado = 'Pendiente'";
 
@@ -137,7 +137,7 @@ namespace Sitrac.Repository
             {
                 IdHito = idHito,
                 FechaCumplimiento = fechaCumplimiento,
-                ReferenciaANCI = referenciaANCI
+                ReferenciaExterna = referenciaANCI
             });
         }
 
@@ -145,7 +145,7 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                UPDATE TbAnciHito
+                UPDATE TbSitracHito
                 SET Estado = 'Cancelado',
                     AuditLastUpdateDate = GETUTCDATE()
                 WHERE IdIncidente = @IdIncidente
@@ -156,3 +156,4 @@ namespace Sitrac.Repository
         }
     }
 }
+

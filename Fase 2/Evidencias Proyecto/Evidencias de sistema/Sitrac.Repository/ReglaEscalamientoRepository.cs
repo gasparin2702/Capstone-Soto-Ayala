@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using Sitrac.DataAccess;
 using Sitrac.Repository.Interfaces;
 using Sitrac.Repository.Models;
@@ -22,7 +22,7 @@ namespace Sitrac.Repository
             const string sql = @"
                 SELECT IdRegla, CodTipoHito, TiempoRestanteMinutos, RepetirCadaMinutos,
                        NotificarEmail, NotificarTeams, Descripcion, OrdenVisual
-                FROM TbAnciReglaEscalamiento
+                FROM TbSitracReglaEscalamiento
                 WHERE AuditNotDeleted = 1
                 ORDER BY CodTipoHito ASC, TiempoRestanteMinutos DESC";
 
@@ -35,7 +35,7 @@ namespace Sitrac.Repository
             const string sql = @"
                 SELECT IdRegla, CodTipoHito, TiempoRestanteMinutos, RepetirCadaMinutos,
                        NotificarEmail, NotificarTeams, Descripcion, OrdenVisual
-                FROM TbAnciReglaEscalamiento
+                FROM TbSitracReglaEscalamiento
                 WHERE CodTipoHito = @CodTipoHito AND AuditNotDeleted = 1
                 ORDER BY TiempoRestanteMinutos DESC";
 

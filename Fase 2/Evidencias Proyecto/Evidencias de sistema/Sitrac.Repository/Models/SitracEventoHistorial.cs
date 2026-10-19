@@ -1,6 +1,6 @@
-namespace Sitrac.Repository.Models
+﻿namespace Sitrac.Repository.Models
 {
-    public class AnciEventoHistorial
+    public class SitracEventoHistorial
     {
         public long IdIncidente { get; set; }
         public string CodigoTicketInvgate { get; set; } = string.Empty;

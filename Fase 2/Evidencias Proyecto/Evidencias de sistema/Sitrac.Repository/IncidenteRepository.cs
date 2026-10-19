@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using Sitrac.DataAccess;
 using Sitrac.Repository.Interfaces;
 using Sitrac.Repository.Models;
@@ -16,7 +16,7 @@ namespace Sitrac.Repository
             _connectionFactory = connectionFactory;
         }
 
-        public async Task<AnciIncidente?> ObtenerPorIdAsync(long idIncidente)
+        public async Task<SitracIncidente?> ObtenerPorIdAsync(long idIncidente)
         {
             using var connection = _connectionFactory.CreateConnection();
 
@@ -26,17 +26,17 @@ namespace Sitrac.Repository
                     CodTipoCanalEntrada, CodigoTicketInvgate, IndEsIncidenteReal, 
                     CodTipoDatosPersonales, CodTipoClasificacionEmpresa, 
                     CodTipoGravedad, CodTipoEstadoIncidente, DescripcionSistemaAfectado
-                FROM TbAnciIncidente 
+                FROM TbSitracIncidente 
                 WHERE IdIncidente = @Id AND AuditNotDeleted = 1";
 
-            return await connection.QueryFirstOrDefaultAsync<AnciIncidente>(sql, new { Id = idIncidente });
+            return await connection.QueryFirstOrDefaultAsync<SitracIncidente>(sql, new { Id = idIncidente });
         }
 
-        public async Task<long> InsertarAsync(AnciIncidente incidente)
+        public async Task<long> InsertarAsync(SitracIncidente incidente)
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                INSERT INTO TbAnciIncidente (
+                INSERT INTO TbSitracIncidente (
                     FechaTomaConocimiento, CodTipoCanalEntrada, CodigoTicketInvgate, 
                     IndEsIncidenteReal, CodTipoDatosPersonales, CodTipoClasificacionEmpresa, 
                     CodTipoGravedad, CodTipoEstadoIncidente, DescripcionSistemaAfectado
@@ -63,14 +63,14 @@ namespace Sitrac.Repository
                     s.FechaLimiteAvisoTemprano, 
                     s.FechaLimiteInformePreliminar, 
                     s.FechaLimiteInformeFinal
-                FROM TbAnciIncidente i
-                INNER JOIN TbAnciIncidentePlazoSla s ON i.IdIncidente = s.IdIncidente
+                FROM TbSitracIncidente i
+                INNER JOIN TbSitracIncidentePlazoSla s ON i.IdIncidente = s.IdIncidente
                 WHERE i.CodTipoEstadoIncidente < 4 AND i.AuditNotDeleted = 1";
 
             return await connection.QueryAsync<IncidenteSlaInfo>(sql);
         }
 
-        public async Task AvanzarEstadoConHistorialAsync(long idIncidente, long nuevoEstado, AnciEventoHistorial historial)
+        public async Task AvanzarEstadoConHistorialAsync(long idIncidente, long nuevoEstado, SitracEventoHistorial historial)
         {
             using var connection = _connectionFactory.CreateConnection();
             connection.Open();
@@ -79,13 +79,13 @@ namespace Sitrac.Repository
             try
             {
                 const string sqlUpdate = @"
-                    UPDATE TbAnciIncidente 
+                    UPDATE TbSitracIncidente 
                     SET CodTipoEstadoIncidente = @NuevoEstado, AuditLastUpdateDate = GETDATE()
                     WHERE IdIncidente = @IdIncidente";
                 await connection.ExecuteAsync(sqlUpdate, new { NuevoEstado = nuevoEstado, IdIncidente = idIncidente }, transaction);
 
                 const string sqlInsert = @"
-                    INSERT INTO TbAnciEventoHistorial (
+                    INSERT INTO TbSitracEventoHistorial (
                         IdIncidente, CodigoTicketInvgate, IdTipoAmbitoCambio,
                         IdTipoEstadoIncidenteAnterior, IdTipoEstadoIncidenteNuevo,
                         IdResponsableCambia, Comentario
@@ -122,12 +122,12 @@ namespace Sitrac.Repository
                     sla.FechaLimiteAvisoTemprano,
                     sla.FechaLimiteInformePreliminar,
                     sla.FechaLimiteInformeFinal
-                FROM TbAnciIncidente i
-                INNER JOIN TbAnciTipoCanalEntrada c ON i.CodTipoCanalEntrada = c.IdTipoCanalEntrada
-                INNER JOIN TbAnciTipoClasificacionEmpresa e ON i.CodTipoClasificacionEmpresa = e.IdTipoClasificacionEmpresa
-                INNER JOIN TbAnciTipoGravedad g ON i.CodTipoGravedad = g.IdTipoGravedad
-                INNER JOIN TbAnciTipoEstadoIncidente est ON i.CodTipoEstadoIncidente = est.IdTipoEstadoIncidente
-                LEFT JOIN TbAnciIncidentePlazoSla sla ON i.IdIncidente = sla.IdIncidente
+                FROM TbSitracIncidente i
+                INNER JOIN TbSitracTipoCanalEntrada c ON i.CodTipoCanalEntrada = c.IdTipoCanalEntrada
+                INNER JOIN TbSitracTipoClasificacionEmpresa e ON i.CodTipoClasificacionEmpresa = e.IdTipoClasificacionEmpresa
+                INNER JOIN TbSitracTipoGravedad g ON i.CodTipoGravedad = g.IdTipoGravedad
+                INNER JOIN TbSitracTipoEstadoIncidente est ON i.CodTipoEstadoIncidente = est.IdTipoEstadoIncidente
+                LEFT JOIN TbSitracIncidentePlazoSla sla ON i.IdIncidente = sla.IdIncidente
                 WHERE i.CodTipoEstadoIncidente < 4 AND i.AuditNotDeleted = 1";
 
             return await connection.QueryAsync<IncidenteResumen>(sql);
@@ -151,12 +151,12 @@ namespace Sitrac.Repository
                     sla.FechaLimiteAvisoTemprano,
                     sla.FechaLimiteInformePreliminar,
                     sla.FechaLimiteInformeFinal
-                FROM TbAnciIncidente i
-                INNER JOIN TbAnciTipoCanalEntrada c ON i.CodTipoCanalEntrada = c.IdTipoCanalEntrada
-                INNER JOIN TbAnciTipoClasificacionEmpresa e ON i.CodTipoClasificacionEmpresa = e.IdTipoClasificacionEmpresa
-                INNER JOIN TbAnciTipoGravedad g ON i.CodTipoGravedad = g.IdTipoGravedad
-                INNER JOIN TbAnciTipoEstadoIncidente est ON i.CodTipoEstadoIncidente = est.IdTipoEstadoIncidente
-                LEFT JOIN TbAnciIncidentePlazoSla sla ON i.IdIncidente = sla.IdIncidente
+                FROM TbSitracIncidente i
+                INNER JOIN TbSitracTipoCanalEntrada c ON i.CodTipoCanalEntrada = c.IdTipoCanalEntrada
+                INNER JOIN TbSitracTipoClasificacionEmpresa e ON i.CodTipoClasificacionEmpresa = e.IdTipoClasificacionEmpresa
+                INNER JOIN TbSitracTipoGravedad g ON i.CodTipoGravedad = g.IdTipoGravedad
+                INNER JOIN TbSitracTipoEstadoIncidente est ON i.CodTipoEstadoIncidente = est.IdTipoEstadoIncidente
+                LEFT JOIN TbSitracIncidentePlazoSla sla ON i.IdIncidente = sla.IdIncidente
                 WHERE i.IdIncidente = @IdIncidente AND i.AuditNotDeleted = 1";
 
             return await connection.QueryFirstOrDefaultAsync<IncidenteDetalle>(sql, new { IdIncidente = idIncidente });
@@ -178,13 +178,13 @@ namespace Sitrac.Repository
                     CAST(IIF(r.IdResponsable = 1, 1, 0) AS BIT) AS EsAccionAutomatica,
                     h.FechaCambio,
                     h.Comentario
-                FROM TbAnciEventoHistorial h
-                INNER JOIN TbAnciTipoAmbitoCambio amb ON h.IdTipoAmbitoCambio = amb.IdTipoAmbitoCambio
-                INNER JOIN TbAnciResponsable r ON h.IdResponsableCambia = r.IdResponsable
-                LEFT JOIN TbAnciTipoEstadoIncidente estAnt ON h.IdTipoEstadoIncidenteAnterior = estAnt.IdTipoEstadoIncidente
-                LEFT JOIN TbAnciTipoEstadoIncidente estNvo ON h.IdTipoEstadoIncidenteNuevo = estNvo.IdTipoEstadoIncidente
-                LEFT JOIN TbAnciTipoGravedad gAnt ON h.IdTipoGravedadAnterior = gAnt.IdTipoGravedad
-                LEFT JOIN TbAnciTipoGravedad gNvo ON h.IdTipoGravedadNueva = gNvo.IdTipoGravedad
+                FROM TbSitracEventoHistorial h
+                INNER JOIN TbSitracTipoAmbitoCambio amb ON h.IdTipoAmbitoCambio = amb.IdTipoAmbitoCambio
+                INNER JOIN TbSitracResponsable r ON h.IdResponsableCambia = r.IdResponsable
+                LEFT JOIN TbSitracTipoEstadoIncidente estAnt ON h.IdTipoEstadoIncidenteAnterior = estAnt.IdTipoEstadoIncidente
+                LEFT JOIN TbSitracTipoEstadoIncidente estNvo ON h.IdTipoEstadoIncidenteNuevo = estNvo.IdTipoEstadoIncidente
+                LEFT JOIN TbSitracTipoGravedad gAnt ON h.IdTipoGravedadAnterior = gAnt.IdTipoGravedad
+                LEFT JOIN TbSitracTipoGravedad gNvo ON h.IdTipoGravedadNueva = gNvo.IdTipoGravedad
                 WHERE h.IdIncidente = @IdIncidente
                 ORDER BY h.FechaCambio DESC";
 

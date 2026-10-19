@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using Sitrac.DataAccess;
 using Sitrac.Repository.Interfaces;
 using Sitrac.Repository.Models;
@@ -15,22 +15,22 @@ namespace Sitrac.Repository
             _connectionFactory = connectionFactory;
         }
 
-        public async Task<AnciTipoPlazoSla?> ObtenerParametrosPorEmpresaAsync(long codTipoClasificacionEmpresa)
+        public async Task<SitracTipoPlazoSla?> ObtenerParametrosPorEmpresaAsync(long codTipoClasificacionEmpresa)
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 SELECT IdTipoPlazoSla, CodTipoClasificacionEmpresa, HorasAvisoTemprano, HorasInformePreliminar, DiasInformeFinal
-                FROM TbAnciTipoPlazoSla
+                FROM TbSitracTipoPlazoSla
                 WHERE CodTipoClasificacionEmpresa = @CodEmpresa AND AuditNotDeleted = 1";
             
-            return await connection.QueryFirstOrDefaultAsync<AnciTipoPlazoSla>(sql, new { CodEmpresa = codTipoClasificacionEmpresa });
+            return await connection.QueryFirstOrDefaultAsync<SitracTipoPlazoSla>(sql, new { CodEmpresa = codTipoClasificacionEmpresa });
         }
 
-        public async Task InsertarPlazosAsync(AnciIncidentePlazoSla plazos)
+        public async Task InsertarPlazosAsync(SitracIncidentePlazoSla plazos)
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                INSERT INTO TbAnciIncidentePlazoSla (
+                INSERT INTO TbSitracIncidentePlazoSla (
                     IdIncidente, IdTipoPlazoSla, FechaTomaConocimiento, 
                     FechaLimiteAvisoTemprano, FechaLimiteInformePreliminar, FechaLimiteInformeFinal
                 ) VALUES (

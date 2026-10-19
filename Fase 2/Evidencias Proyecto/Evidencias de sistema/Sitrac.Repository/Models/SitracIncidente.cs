@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 
 namespace Sitrac.Repository.Models
 {
-    public class AnciIncidente
+    public class SitracIncidente
     {
         public long IdIncidente { get; set; }
         public DateTime FechaTomaConocimiento { get; set; }

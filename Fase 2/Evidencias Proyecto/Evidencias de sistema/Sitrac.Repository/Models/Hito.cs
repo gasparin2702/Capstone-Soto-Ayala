@@ -12,10 +12,11 @@ namespace Sitrac.Repository.Models
         public DateTime FechaLimite { get; set; }
         public string Estado { get; set; } = "Pendiente";
         public DateTime? FechaCumplimiento { get; set; }
-        public string? ReferenciaANCI { get; set; }
+        public string? ReferenciaExterna { get; set; }
         public long? UltimaReglaNotificada { get; set; }
         public DateTime? ProximaNotificacionAt { get; set; }
         public int ConteoNotificaciones { get; set; }
         public DateTime? SilenciadoHasta { get; set; }
     }
 }
+

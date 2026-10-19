@@ -22,7 +22,7 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                INSERT INTO TbAnciNotificacionLog (
+                INSERT INTO TbSitracNotificacionLog (
                     IdHito, NumeroNotificacion, Destinatario, Canal, IdRegla, Estado,
                     Intentos, ProximoReintentoAt, FechaProgramada
                 ) VALUES (
@@ -40,7 +40,7 @@ namespace Sitrac.Repository
                 SELECT TOP (@Maximo)
                     IdNotificacion, IdHito, NumeroNotificacion, Destinatario, Canal, IdRegla,
                     Estado, Intentos, ProximoReintentoAt, FechaProgramada, FechaEnvio, MensajeError
-                FROM TbAnciNotificacionLog
+                FROM TbSitracNotificacionLog
                 WHERE Estado = 'Pendiente'
                   AND AuditNotDeleted = 1
                   AND (ProximoReintentoAt IS NULL OR ProximoReintentoAt <= GETUTCDATE())
@@ -53,7 +53,7 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                UPDATE TbAnciNotificacionLog
+                UPDATE TbSitracNotificacionLog
                 SET Estado = 'Enviada',
                     FechaEnvio = @FechaEnvio,
                     Intentos = Intentos + 1,
@@ -67,7 +67,7 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                UPDATE TbAnciNotificacionLog
+                UPDATE TbSitracNotificacionLog
                 SET Estado = CASE WHEN Intentos + 1 >= 3 THEN 'Fallida' ELSE 'Pendiente' END,
                     Intentos = Intentos + 1,
                     MensajeError = @MensajeError,
@@ -87,7 +87,7 @@ namespace Sitrac.Repository
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
-                UPDATE TbAnciNotificacionLog
+                UPDATE TbSitracNotificacionLog
                 SET Estado = 'Cancelada',
                     AuditLastUpdateDate = GETUTCDATE()
                 WHERE IdHito = @IdHito AND Estado = 'Pendiente'";
@@ -96,3 +96,4 @@ namespace Sitrac.Repository
         }
     }
 }
+

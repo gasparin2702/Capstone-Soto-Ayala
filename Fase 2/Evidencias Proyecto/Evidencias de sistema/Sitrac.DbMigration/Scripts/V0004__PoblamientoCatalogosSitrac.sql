@@ -24,7 +24,7 @@ INSERT INTO TbSitracTipoGravedad (NombreTipoGravedad, OrdenTipoGravedad) VALUES
 ('Bajo', 1), 
 ('Medio', 2), 
 ('Alto', 3), 
-('Critico', 4);
+('Crítico', 4); -- Corregido: Se agregó la tilde
 
 -- 5. Estados del Incidente (Flujo lógico)
 INSERT INTO TbSitracTipoEstadoIncidente (NombreTipoEstadoIncidente, OrdenTipoEstadoIncidente) VALUES 

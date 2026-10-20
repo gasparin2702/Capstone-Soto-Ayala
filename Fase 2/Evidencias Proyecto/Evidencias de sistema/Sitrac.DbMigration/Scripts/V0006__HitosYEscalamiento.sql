@@ -5,8 +5,27 @@
 -- ==============================================================================
 
 -- ==============================================================================
+-- TABLA 0: Catálogo de tipos de hitos regulatorios
+-- ==============================================================================
+CREATE TABLE TbSitracTipoHito (
+    IdTipoHito BIGINT NOT NULL,       -- 1=Aviso, 2=Preliminar, 3=Final
+    NombreTipoHito VARCHAR(50) NOT NULL,
+    DescripcionTipoHito VARCHAR(200) NULL,
+    HorasLegalesBase INT NOT NULL,    -- 3h (aviso), 72h (preliminar base), 360h (15d final)
+    AuditNotDeleted BIT NOT NULL CONSTRAINT DF_TbSitracTipoHito_AuditNotDeleted DEFAULT 1,
+    AuditCreateDate DATETIME NOT NULL CONSTRAINT DF_TbSitracTipoHito_AuditCreateDate DEFAULT GETUTCDATE(),
+    AuditLastUpdateDate DATETIME NOT NULL CONSTRAINT DF_TbSitracTipoHito_AuditLastUpdateDate DEFAULT GETUTCDATE(),
+    AuditUserLastUpdate VARCHAR(50) NOT NULL CONSTRAINT DF_TbSitracTipoHito_AuditUserLastUpdate DEFAULT SUSER_NAME(),
+    CONSTRAINT PK_TbSitracTipoHito PRIMARY KEY CLUSTERED (IdTipoHito ASC)
+);
+
+INSERT INTO TbSitracTipoHito (IdTipoHito, NombreTipoHito, DescripcionTipoHito, HorasLegalesBase) VALUES
+    (1, 'Aviso Temprano',      'Aviso inicial a la ANCI dentro de 3 horas desde toma de conocimiento',                  3),
+    (2, 'Informe Preliminar',  'Informe de actualización dentro de 24h (OIV) o 72h (Esencial)',                      72),
+    (3, 'Informe Final',       'Informe de cierre dentro de 15 días (360 horas) desde toma de conocimiento',         360);
+
+-- ==============================================================================
 -- TABLA 1: Hitos regulatorios por incidente
--- Cada fila = una obligación legal (Aviso Temprano, Informe Preliminar, Informe Final)
 -- ==============================================================================
 CREATE TABLE TbSitracHito (
     IdHito BIGINT IDENTITY(1,1) NOT NULL,
@@ -28,10 +47,11 @@ CREATE TABLE TbSitracHito (
     AuditUserLastUpdate VARCHAR(50) NOT NULL CONSTRAINT DF_TbSitracHito_AuditUserLastUpdate DEFAULT SUSER_NAME(),
     CONSTRAINT PK_TbSitracHito PRIMARY KEY CLUSTERED (IdHito ASC),
     CONSTRAINT FK_TbSitracHito_Incidente FOREIGN KEY (IdIncidente) REFERENCES TbSitracIncidente (IdIncidente),
+    CONSTRAINT FK_TbSitracHito_TipoHito FOREIGN KEY (CodTipoHito) REFERENCES TbSitracTipoHito (IdTipoHito),
     CONSTRAINT CK_TbSitracHito_Estado CHECK (Estado IN ('Pendiente', 'Cumplido', 'Cancelado', 'Aplazado'))
 );
 
-CREATE INDEX IX_TbSitracHito_Incidente ON TbSitracHito (IdIncidente);
+CREATE INDEX IX_TbSitracHito_Incidente ON TbSitracHito (IdIncidente, CodTipoHito);
 CREATE INDEX IX_TbSitracHito_Pendientes ON TbSitracHito (Estado, FechaLimite) WHERE AuditNotDeleted = 1;
 CREATE INDEX IX_TbSitracHito_CicloNotif ON TbSitracHito (Estado, ProximaNotificacionAt) WHERE AuditNotDeleted = 1;
 
@@ -88,8 +108,6 @@ CREATE INDEX IX_TbSitracNotificacionLog_Outbox ON TbSitracNotificacionLog (Estad
 -- ==============================================================================
 -- SEED: Reglas de escalamiento
 -- ==============================================================================
-
--- Aviso Temprano
 INSERT INTO TbSitracReglaEscalamiento (CodTipoHito, TiempoRestanteMinutos, RepetirCadaMinutos, Descripcion, OrdenVisual) VALUES
 (1, 120, NULL, 'Aviso Temprano: faltan 2 horas', 10),
 (1, 60,  NULL, 'Aviso Temprano: falta 1 hora', 20),
@@ -98,7 +116,6 @@ INSERT INTO TbSitracReglaEscalamiento (CodTipoHito, TiempoRestanteMinutos, Repet
 (1, 0,   15,   'Aviso Temprano VENCIDO: primera hora', 50),
 (1, -60, 60,   'Aviso Temprano VENCIDO: seguimiento horario', 60);
 
--- Informe Preliminar
 INSERT INTO TbSitracReglaEscalamiento (CodTipoHito, TiempoRestanteMinutos, RepetirCadaMinutos, Descripcion, OrdenVisual) VALUES
 (2, 1440, NULL, 'Informe Preliminar: faltan 24 horas', 10),
 (2, 480,  NULL, 'Informe Preliminar: faltan 8 horas', 20),
@@ -107,7 +124,6 @@ INSERT INTO TbSitracReglaEscalamiento (CodTipoHito, TiempoRestanteMinutos, Repet
 (2, 0,    30,   'Informe Preliminar VENCIDO: primera hora', 50),
 (2, -60,  60,   'Informe Preliminar VENCIDO: seguimiento horario', 60);
 
--- Informe Final
 INSERT INTO TbSitracReglaEscalamiento (CodTipoHito, TiempoRestanteMinutos, RepetirCadaMinutos, Descripcion, OrdenVisual) VALUES
 (3, 10080, NULL, 'Informe Final: faltan 7 días', 10),
 (3, 7200,  NULL, 'Informe Final: faltan 5 días', 20),
@@ -119,7 +135,6 @@ INSERT INTO TbSitracReglaEscalamiento (CodTipoHito, TiempoRestanteMinutos, Repet
 -- ==============================================================================
 -- RELLENO: Crear hitos para incidentes abiertos existentes
 -- ==============================================================================
-
 INSERT INTO TbSitracHito (IdIncidente, CodTipoHito, Secuencia, FechaBase, FechaLimite, Estado)
 SELECT i.IdIncidente, 1, 1, i.FechaTomaConocimiento, sla.FechaLimiteAvisoTemprano, 'Pendiente'
 FROM TbSitracIncidente i

@@ -10,18 +10,12 @@
   <ItemGroup>
     <PackageReference Include="Evolve" Version="3.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
-      </ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Sitrac.Service\Sitrac.Service.csproj" />
     <ProjectReference Include="..\Sitrac.Repository\Sitrac.Repository.csproj" />
-      </ItemGroup>
-
-  <ItemGroup>
-      </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
+
 </Project>
-
-

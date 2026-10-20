@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using Sitrac.DataAccess;
 using Sitrac.Repository;
 using Sitrac.Repository.Interfaces;
@@ -34,9 +34,10 @@ builder.Services.AddOptions<TeamsSettings>()
     .Bind(builder.Configuration.GetSection(TeamsSettings.SectionName))
     .Validate(settings =>
         !settings.Habilitado || !string.IsNullOrWhiteSpace(settings.WebhookUrl),
-        "Teams habilitado pero WebhookUrl vacÃ­o")
+        "Teams habilitado pero WebhookUrl vacío")
     .ValidateOnStart();
-
+builder.Services.Configure<FrontendSettings>(
+    builder.Configuration.GetSection(FrontendSettings.SectionName));
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IIncidenteRepository, IncidenteRepository>();
 builder.Services.AddScoped<ISlaRepository, SlaRepository>();
@@ -94,4 +95,3 @@ void EjecutarMigracionesEvolve(IConfiguration configuration)
         throw;
     }
 }
-

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Sitrac.Repository.Models
 {
@@ -10,6 +11,7 @@ namespace Sitrac.Repository.Models
         public string Clasificacion { get; set; } = string.Empty;
         public int Gravedad { get; set; }
         public string Estado { get; set; } = string.Empty;
+        public long CodTipoEstadoIncidente { get; set; } // <-- NUEVO
         public string? SistemaAfectado { get; set; }
         public string? VectorAtaque { get; set; }
         public string? OrigenDeteccion { get; set; }
@@ -17,5 +19,7 @@ namespace Sitrac.Repository.Models
         public DateTime? FechaLimiteAvisoTemprano { get; set; }
         public DateTime? FechaLimiteInformePreliminar { get; set; }
         public DateTime? FechaLimiteInformeFinal { get; set; }
+        
+        public List<HitoResumen> Hitos { get; set; } = new(); // <-- NUEVO
     }
 }

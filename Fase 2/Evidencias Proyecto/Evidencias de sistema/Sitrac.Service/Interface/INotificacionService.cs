@@ -7,6 +7,7 @@ namespace Sitrac.Service.Interfaces
     public interface INotificacionService
     {
         Task<ResultadoEnvio> EnviarAlertaNuevoIncidenteAsync(
+            long idIncidente, // <-- NUEVO PARÁMETRO
             string destinatario,
             string ticketId,
             string sistema,
@@ -14,6 +15,7 @@ namespace Sitrac.Service.Interfaces
             CancellationToken cancellationToken = default);
 
         Task<ResultadoEnvio> EnviarAlertaTeamsAsync(
+            long idIncidente, // <-- NUEVO PARÁMETRO
             string ticketId,
             string sistema,
             int gravedad,

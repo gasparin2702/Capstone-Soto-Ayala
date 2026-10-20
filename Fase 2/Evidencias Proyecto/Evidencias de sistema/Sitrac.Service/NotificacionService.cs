@@ -20,83 +20,68 @@ namespace Sitrac.Service
     {
         private readonly SmtpSettings _smtpSettings;
         private readonly TeamsSettings _teamsSettings;
+        private readonly FrontendSettings _frontendSettings; // <-- NUEVO
         private readonly ILogger<NotificacionService> _logger;
 
         private static readonly SemaphoreSlim _sendLock = new(1, 1);
         private static DateTime _nextAllowedSendTime = DateTime.MinValue;
-
         private static readonly HttpClient _httpClient = new HttpClient();
 
         public NotificacionService(
             IOptions<SmtpSettings> smtpOptions,
             IOptions<TeamsSettings> teamsOptions,
+            IOptions<FrontendSettings> frontendOptions, // <-- NUEVO
             ILogger<NotificacionService> logger)
         {
             _smtpSettings = smtpOptions.Value;
             _teamsSettings = teamsOptions.Value;
+            _frontendSettings = frontendOptions.Value;  // <-- NUEVO
             _logger = logger;
         }
 
         public async Task<ResultadoEnvio> EnviarAlertaNuevoIncidenteAsync(
-            string destinatario,
-            string ticketId,
-            string sistema,
-            int horasSla,
-            CancellationToken cancellationToken = default)
+            long idIncidente, string destinatario, string ticketId, string sistema, int horasSla, CancellationToken cancellationToken = default)
         {
             if (!_smtpSettings.EstaConfigurado())
             {
                 var motivo = "SMTP no configurado (falta Host/UserName/Password).";
-                _logger.LogWarning("[Notificacion][Email] Evento: ConfiguracionInvalida Ticket: {Ticket} Motivo: {Motivo}",
-                    ticketId, motivo);
+                _logger.LogWarning("[Notificacion][Email] Evento: ConfiguracionInvalida Ticket: {Ticket} Motivo: {Motivo}", ticketId, motivo);
                 return ResultadoEnvio.Fallo(motivo);
             }
 
             if (!EsEmailValido(destinatario))
             {
                 var motivo = $"Destinatario inválido: {destinatario}";
-                _logger.LogWarning("[Notificacion][Email] Evento: DestinatarioInvalido Ticket: {Ticket} Motivo: {Motivo}",
-                    ticketId, motivo);
+                _logger.LogWarning("[Notificacion][Email] Evento: DestinatarioInvalido Ticket: {Ticket} Motivo: {Motivo}", ticketId, motivo);
                 return ResultadoEnvio.Fallo(motivo);
             }
 
             var asunto = $"[URGENTE] Nuevo Incidente Registrado - Ley N° 21.663 ({ticketId})";
-            var cuerpoHtml = ConstruirCuerpoEmail(ticketId, sistema, horasSla);
+            var cuerpoHtml = ConstruirCuerpoEmail(idIncidente, ticketId, sistema, horasSla);
 
             return await EnviarEmailConReintentosAsync(destinatario, asunto, cuerpoHtml, ticketId, cancellationToken);
         }
 
         public async Task<ResultadoEnvio> EnviarAlertaTeamsAsync(
-            string ticketId,
-            string sistema,
-            int gravedad,
-            string clasificacion,
-            string estado,
-            double prioridadScore,
-            string hitoPendiente,
-            string? razon,
-            CancellationToken cancellationToken = default)
+            long idIncidente, string ticketId, string sistema, int gravedad, string clasificacion, string estado, double prioridadScore, string hitoPendiente, string? razon, CancellationToken cancellationToken = default)
         {
             if (!_teamsSettings.EstaConfigurado())
             {
                 var motivo = "Teams no configurado (falta Habilitado o WebhookUrl).";
-                _logger.LogInformation("[Notificacion][Teams] Evento: Omitido Ticket: {Ticket} Motivo: {Motivo}",
-                    ticketId, motivo);
+                _logger.LogInformation("[Notificacion][Teams] Evento: Omitido Ticket: {Ticket} Motivo: {Motivo}", ticketId, motivo);
                 return ResultadoEnvio.Fallo(motivo);
             }
 
             if (prioridadScore < _teamsSettings.UmbralPrioridadMinima)
             {
                 var motivo = $"Prioridad {prioridadScore:0.00} bajo umbral {_teamsSettings.UmbralPrioridadMinima}.";
-                _logger.LogInformation("[Notificacion][Teams] Evento: Omitido Ticket: {Ticket} Motivo: {Motivo}",
-                    ticketId, motivo);
+                _logger.LogInformation("[Notificacion][Teams] Evento: Omitido Ticket: {Ticket} Motivo: {Motivo}", ticketId, motivo);
                 return ResultadoEnvio.Fallo(motivo);
             }
 
             try
             {
-                var payload = ConstruirPayloadTeamsAdaptiveCard(
-                    ticketId, sistema, gravedad, clasificacion, estado, prioridadScore, hitoPendiente, razon);
+                var payload = ConstruirPayloadTeamsAdaptiveCard(idIncidente, ticketId, sistema, gravedad, clasificacion, estado, prioridadScore, hitoPendiente, razon);
 
                 var json = JsonSerializer.Serialize(payload);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -110,32 +95,21 @@ namespace Sitrac.Service
                 {
                     var body = await response.Content.ReadAsStringAsync(cancellationToken);
                     var error = $"HTTP {(int)response.StatusCode}: {body}";
-                    _logger.LogWarning(
-                        "[Notificacion][Teams] Evento: FalloEnvio Ticket: {Ticket} Score: {Score} Error: {Error}",
-                        ticketId, prioridadScore, error);
+                    _logger.LogWarning("[Notificacion][Teams] Evento: FalloEnvio Ticket: {Ticket} Score: {Score} Error: {Error}", ticketId, prioridadScore, error);
                     return ResultadoEnvio.Fallo(error);
                 }
 
-                _logger.LogInformation(
-                    "[Notificacion][Teams] Evento: Enviado Ticket: {Ticket} Score: {Score}",
-                    ticketId, prioridadScore);
+                _logger.LogInformation("[Notificacion][Teams] Evento: Enviado Ticket: {Ticket} Score: {Score}", ticketId, prioridadScore);
                 return ResultadoEnvio.Ok();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "[Notificacion][Teams] Evento: Error Ticket: {Ticket} Score: {Score}",
-                    ticketId, prioridadScore);
+                _logger.LogError(ex, "[Notificacion][Teams] Evento: Error Ticket: {Ticket} Score: {Score}", ticketId, prioridadScore);
                 return ResultadoEnvio.Fallo(ex.Message);
             }
         }
 
-        private async Task<ResultadoEnvio> EnviarEmailConReintentosAsync(
-            string destinatario,
-            string asunto,
-            string cuerpoHtml,
-            string ticketId,
-            CancellationToken cancellationToken)
+        private async Task<ResultadoEnvio> EnviarEmailConReintentosAsync(string destinatario, string asunto, string cuerpoHtml, string ticketId, CancellationToken cancellationToken)
         {
             int intento = 0;
             string ultimoError = string.Empty;
@@ -148,20 +122,15 @@ namespace Sitrac.Service
                 {
                     await EspaciarEnvioAsync(cancellationToken);
                     await EnviarEmailAsync(destinatario, asunto, cuerpoHtml, cancellationToken);
-                    _logger.LogInformation(
-                        "[Notificacion][Email] Evento: Enviado Destinatario: {Destinatario} Ticket: {Ticket} Intento: {Intento}",
-                        destinatario, ticketId, intento);
+                    _logger.LogInformation("[Notificacion][Email] Evento: Enviado Destinatario: {Destinatario} Ticket: {Ticket} Intento: {Intento}", destinatario, ticketId, intento);
                     return ResultadoEnvio.Ok();
                 }
                 catch (Exception ex)
                 {
                     ultimoError = ex.Message;
-                    _logger.LogWarning(ex,
-                        "[Notificacion][Email] Evento: FalloIntento Destinatario: {Destinatario} Ticket: {Ticket} Intento: {Intento}",
-                        destinatario, ticketId, intento);
+                    _logger.LogWarning(ex, "[Notificacion][Email] Evento: FalloIntento Destinatario: {Destinatario} Ticket: {Ticket} Intento: {Intento}", destinatario, ticketId, intento);
                     if (intento <= _smtpSettings.MaxReintentos)
                     {
-                        // Exponential backoff with jitter: min(2^attempt * 100ms, 10000ms) + random jitter (0-100ms)
                         int baseDelayMs = 100;
                         int maxDelayMs = 10000;
                         int delayMs = Math.Min(baseDelayMs * (1 << (intento - 1)), maxDelayMs);
@@ -171,9 +140,7 @@ namespace Sitrac.Service
                 }
             }
 
-            _logger.LogError(
-                "[Notificacion][Email] Evento: FalloDefinitivo Destinatario: {Destinatario} Ticket: {Ticket} Error: {Error}",
-                destinatario, ticketId, ultimoError);
+            _logger.LogError("[Notificacion][Email] Evento: FalloDefinitivo Destinatario: {Destinatario} Ticket: {Ticket} Error: {Error}", destinatario, ticketId, ultimoError);
             return ResultadoEnvio.Fallo(ultimoError);
         }
 
@@ -209,12 +176,7 @@ namespace Sitrac.Service
             using var client = new SmtpClient();
             client.Timeout = _smtpSettings.TimeoutMs;
 
-            await client.ConnectAsync(
-                _smtpSettings.Host,
-                _smtpSettings.Port,
-                _smtpSettings.EnableSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None,
-                ct);
-
+            await client.ConnectAsync(_smtpSettings.Host, _smtpSettings.Port, _smtpSettings.EnableSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None, ct);
             await client.AuthenticateAsync(_smtpSettings.UserName, _smtpSettings.Password, ct);
             await client.SendAsync(message, ct);
             await client.DisconnectAsync(true, ct);
@@ -239,19 +201,14 @@ namespace Sitrac.Service
             }
         }
 
-        private static object ConstruirPayloadTeamsAdaptiveCard(
-            string ticketId,
-            string sistema,
-            int gravedad,
-            string clasificacion,
-            string estado,
-            double prioridadScore,
-            string hitoPendiente,
-            string? razon)
+        // Ya NO es estático para poder leer _frontendSettings
+        private object ConstruirPayloadTeamsAdaptiveCard(
+            long idIncidente, string ticketId, string sistema, int gravedad, string clasificacion, string estado, double prioridadScore, string hitoPendiente, string? razon)
         {
             var etiqueta = PrioridadCalculator.Etiqueta(prioridadScore);
             var emojiGravedad = PrioridadCalculator.EmojiGravedad(gravedad);
             var nombreGravedad = PrioridadCalculator.NombreGravedad(gravedad);
+            var urlDirecta = $"{_frontendSettings.BaseUrl}/index.html?incidente={idIncidente}";
 
             var facts = new TeamsFact[]
             {
@@ -299,15 +256,16 @@ namespace Sitrac.Service
                                     color = "Attention",
                                     weight = "Bolder",
                                     spacing = "Medium"
-                                },
+                                }
+                            },
+                            // <-- NUEVO BLOQUE DE ACCIÓN (BOTÓN DE TEAMS)
+                            actions = new object[]
+                            {
                                 new
                                 {
-                                    type = "TextBlock",
-                                    text = "Ingresar a la consola SITRAC para revisar el caso y confirmar acciones.",
-                                    wrap = true,
-                                    isSubtle = true,
-                                    size = "Small",
-                                    spacing = "Medium"
+                                    type = "Action.OpenUrl",
+                                    title = "🔗 Revisar Incidente en SITRAC",
+                                    url = urlDirecta
                                 }
                             }
                         }
@@ -316,11 +274,13 @@ namespace Sitrac.Service
             };
         }
 
-        private static string ConstruirCuerpoEmail(string ticketId, string sistema, int horasSla)
+        // Ya NO es estático
+        private string ConstruirCuerpoEmail(long idIncidente, string ticketId, string sistema, int horasSla)
         {
             var ticketSafe = System.Net.WebUtility.HtmlEncode(ticketId);
             var sistemaSafe = System.Net.WebUtility.HtmlEncode(sistema);
             var horasSafe = System.Net.WebUtility.HtmlEncode(horasSla.ToString());
+            var urlDirecta = $"{_frontendSettings.BaseUrl}/index.html?incidente={idIncidente}";
 
             var sb = new StringBuilder();
             sb.Append("<div style='font-family: Arial, sans-serif; max-width: 640px;'>");
@@ -338,7 +298,13 @@ namespace Sitrac.Service
             sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Aviso Temprano:</td>");
             sb.Append("<td style='padding:10px;border:1px solid #e9ebed;color:#c4161c;font-weight:bold'>").Append(horasSafe).Append(" horas</td></tr>");
             sb.Append("</table>");
-            sb.Append("<p style='margin-top:20px'>Ingrese a la consola SITRAC para revisar el caso.</p>");
+            
+            // <-- NUEVO BOTÓN HTML
+            sb.Append("<div style='text-align: center; margin-top: 25px;'>");
+            sb.AppendFormat("<a href='{0}' style='background-color: #0972d3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Revisar Incidente en SITRAC</a>", urlDirecta);
+            sb.Append("</div>");
+
+            sb.Append("<p style='margin-top:20px; font-size:12px; color:#6b7785;'>Ingrese a la consola SITRAC para revisar el caso y confirmar acciones.</p>");
             sb.Append("</div>");
             sb.Append("</div>");
 

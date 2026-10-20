@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Sitrac.Service.Dtos;
 using Sitrac.Service.Interfaces;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Sitrac.Server.Controllers
@@ -72,6 +73,52 @@ namespace Sitrac.Server.Controllers
             {
                 return StatusCode(500, new { Error = "Error al obtener el historial del incidente", Detalle = ex.Message });
             }
+        }
+
+        // ============================================================
+        // NUEVOS ENDPOINTS (BLOQUE B) - CIERRE DE CICLO FUNCIONAL
+        // ============================================================
+
+        [HttpPost("{id}/confirmar-aviso")]
+        public async Task<IActionResult> ConfirmarAviso(long id, [FromBody] ConfirmarAvisoRequest request)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try
+            {
+                await _incidenteService.ConfirmarAvisoAsync(id, request);
+                return Ok(new { Mensaje = "Aviso confirmado. Hito Preliminar creado.", IdIncidente = id });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { Error = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Error = "Error interno", Detalle = ex.Message }); }
+        }
+
+        [HttpPost("{id}/informe")]
+        public async Task<IActionResult> RegistrarInforme(long id, [FromBody] RegistrarInformeRequest request)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try
+            {
+                await _incidenteService.RegistrarInformeAsync(id, request);
+                return Ok(new { Mensaje = $"Informe {(request.Tipo == "P" ? "Preliminar" : "Final")} registrado.", IdIncidente = id });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { Error = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Error = "Error interno", Detalle = ex.Message }); }
+        }
+
+        [HttpPost("{id}/cerrar")]
+        public async Task<IActionResult> CerrarIncidente(long id, [FromBody] CerrarIncidenteRequest request)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try
+            {
+                await _incidenteService.CerrarIncidenteAsync(id, request);
+                return Ok(new { Mensaje = "Incidente cerrado.", IdIncidente = id });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { Error = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Error = "Error interno", Detalle = ex.Message }); }
         }
     }
 }

@@ -106,8 +106,46 @@ export const SitracAPI = {
             console.error(`Error al cargar historial del incidente:`, error);
             return [];
         }
-    }
+    },
 
-    // Los métodos POST para aviso / informe / cierre se agregarán aquí cuando
-    // los endpoints estén listos en el backend.
+    // --- NUEVOS MÉTODOS POST (BLOQUE B) ---
+    
+    confirmarAviso: async (idIncidente, payload) => {
+        const res = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}/confirmar-aviso`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || err.Error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    },
+
+    registrarInforme: async (idIncidente, payload) => {
+        const res = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}/informe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || err.Error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    },
+
+    cerrarIncidente: async (idIncidente, payload) => {
+        const res = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}/cerrar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || err.Error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    }
 };

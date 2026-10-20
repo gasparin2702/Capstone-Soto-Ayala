@@ -41,6 +41,11 @@ CREATE TABLE TbSitracEventoHistorial(
     CONSTRAINT FK_EventoHistorial_ResponsableCambia FOREIGN KEY(IdResponsableCambia) REFERENCES TbSitracResponsable (IdResponsable)
 );
 
--- Inyección del catálogo base
+-- Inyección del catálogo base + ámbitos para acciones manuales (Bloque B)
 INSERT INTO TbSitracTipoAmbitoCambio (IdTipoAmbitoCambio, NombreAmbitoCambio, AuditNotDeleted, AuditCreateDate) 
-VALUES (1, 'Cambio de Estado Automático SLA', 1, GETDATE());
+VALUES 
+    (1, 'Cambio de Estado Automático SLA', 1, GETDATE()),
+    (2, 'Confirmación de Aviso Temprano', 1, GETDATE()),
+    (3, 'Envío de Informe', 1, GETDATE()),
+    (4, 'Cierre Manual de Incidente', 1, GETDATE()),
+    (5, 'Creación de Hito Regulatorio', 1, GETDATE());

@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Sitrac.DataAccess;
 using Sitrac.Repository.Interfaces;
 using Sitrac.Repository.Models;
@@ -122,7 +122,7 @@ namespace Sitrac.Repository
             return filas == 1;
         }
 
-        public async Task CerrarHitoAsync(long idHito, string referenciaANCI, DateTime fechaCumplimiento)
+        public async Task CerrarHitoAsync(long idHito, string? referenciaExterna, DateTime fechaCumplimiento)
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
@@ -137,7 +137,7 @@ namespace Sitrac.Repository
             {
                 IdHito = idHito,
                 FechaCumplimiento = fechaCumplimiento,
-                ReferenciaExterna = referenciaANCI
+                ReferenciaExterna = referenciaExterna
             });
         }
 
@@ -156,4 +156,3 @@ namespace Sitrac.Repository
         }
     }
 }
-

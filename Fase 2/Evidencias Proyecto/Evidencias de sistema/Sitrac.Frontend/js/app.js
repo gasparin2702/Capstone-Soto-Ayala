@@ -179,9 +179,18 @@ async function openRow(dbId, opts = {}) {
     else if (estadoUI === 'Aviso enviado') estadoUI = 'Aviso Temprano';
     else if (estadoUI === 'Preliminar enviado') estadoUI = 'Informe Preliminar';
 
-    const sentA = (estadoUI !== 'Detectado') ? limA - 1000 : null;
-    const sentP = (estadoUI === 'Informe Preliminar' || estadoUI === 'Informe Final' || estadoUI === 'Cerrado') ? limP - 1000 : null;
-    const sentF = (estadoUI === 'Cerrado') ? limF - 1000 : null;
+    // Derivar sent* desde hitos (Lógica implementada en el Bloque B)
+    const hitoByTipo = {};
+    (det.hitos || []).forEach(h => { hitoByTipo[h.codTipoHito] = h; });
+    const sentFromHito = (cod) => {
+      const h = hitoByTipo[cod];
+      return h && h.estado === 'Cumplido' && h.fechaCumplimiento
+        ? new Date(h.fechaCumplimiento).getTime()
+        : null;
+    };
+    const sentA = sentFromHito(1);
+    const sentP = sentFromHito(2);
+    const sentF = sentFromHito(3);
 
     inc = {
       id: det.codigoTicketInvgate || `INC-DB-${det.idIncidente}`,
@@ -342,8 +351,6 @@ function renderDash() {
         <div class="bar-split" aria-hidden="true"><i style="width:${r.length ? inv / r.length * 100 : 0}%;background:var(--primary)"></i><i style="width:${r.length ? mail / r.length * 100 : 0}%;background:#7fb5e8"></i></div>
         <span class="s"><span>INVGATE ${inv}</span><span>Correo ${mail}</span><span>Manual ${man}</span></span></div>`;
 
-    // ⬅ FIX: usar directamente calcularListaFiltrada() para que el DOM respete el orden por prioridad.
-    // Antes hacíamos un filter sobre `r` que reordenaba por el orden original de rows.
     const list = calcularListaFiltrada();
 
     $('#triage').innerHTML = list.map(x => {
@@ -585,7 +592,7 @@ function modal(kind) {
   $('#modal').innerHTML = `<header><div><h2 id="mt">${cfg.t}</h2><p>${esc(inc.id)} · ${cfg.d}</p></div><button class="x" data-close aria-label="Cerrar">${ic('x')}</button></header>
     <form id="mf" novalidate><div class="body">${cfg.extra}
       <div class="fld"><label for="f-com">Comentario <em>(obligatorio)</em></label><textarea id="f-com" placeholder="${cfg.ph}" maxlength="500"></textarea><div class="cnt"><span id="f-hint">Cuéntale al equipo qué hiciste (mínimo 15 caracteres)</span><span id="f-n" class="mono">0/500</span></div></div>
-      <div class="audit">${ic('lock')}<span>Esto quedará firmado como <b>C. Fuentes</b> con la hora del servidor. Cuando los endpoints POST estén listos, se persistirá en <b>TbAnciEventoHistorial</b>.</span></div></div>
+      <div class="audit">${ic('lock')}<span>Esto quedará firmado como <b>C. Fuentes</b> con la hora del servidor y se persistirá en <b>TbSitracEventoHistorial</b>.</span></div></div>
     <footer><button type="button" class="mb" data-close>Cancelar</button><button type="submit" class="mb go ${cfg.danger ? 'danger' : ''}" id="f-ok" disabled>${cfg.btn}</button></footer></form>`;
   $('#ov').hidden = false;
 
@@ -637,14 +644,34 @@ document.addEventListener('keydown', e => {
 
 /* ---------- commit ---------- */
 async function commit(kind, comment, tipo, archivo) {
-  console.log(`[commit] kind=${kind} id=${inc?.dbId} comment="${comment}" tipo=${tipo} archivo=${archivo}`);
-  toast(`Simulación: acción «${kind}» registrada (esperando endpoints POST).`);
-  closeModal();
+  if (!inc || !inc.dbId) throw new Error('No hay incidente activo.');
 
-  await new Promise(r => setTimeout(r, 400));
+  let endpoint, payload;
+  if (kind === 'aviso') {
+    endpoint = 'confirmarAviso';
+    payload = { comentario: comment, referenciaEnvio: null };
+  } else if (kind === 'informe') {
+    endpoint = 'registrarInforme';
+    payload = { comentario: comment, tipo: tipo || 'P', nombreArchivo: archivo };
+  } else if (kind === 'cerrar') {
+    endpoint = 'cerrarIncidente';
+    payload = { comentario: comment, referenciaCierre: null };
+  } else {
+    throw new Error(`Acción desconocida: ${kind}`);
+  }
 
-  await loadCola();
-  if (inc && inc.dbId) await openRow(inc.dbId, { silent: true });
+  try {
+    await SitracAPI[endpoint](inc.dbId, payload);
+    toast(`✔ Acción «${kind}» registrada correctamente.`);
+    closeModal();
+
+    await new Promise(r => setTimeout(r, 300));
+    await loadCola();
+    if (inc && inc.dbId) await openRow(inc.dbId, { silent: true });
+  } catch (err) {
+    toast(`✖ Error: ${err.message}`);
+    throw err;
+  }
 }
 
 /* ---------- casos similares (mock) ---------- */
@@ -704,4 +731,11 @@ function renderAll() {
 
   const clockEl = $('#clock');
   if (clockEl) clockEl.textContent = ftime(now()) + ' · GMT-3';
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const incId = urlParams.get('incidente');
+  if (incId) {
+    console.log(`[Deep Link] Abriendo incidente ID: ${incId}`);
+    await openRow(incId);
+  }
 })();

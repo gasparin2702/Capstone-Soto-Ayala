@@ -48,6 +48,7 @@ builder.Services.AddScoped<IReglaEscalamientoRepository, ReglaEscalamientoReposi
 builder.Services.AddScoped<INotificacionLogRepository, NotificacionLogRepository>();
 
 builder.Services.AddHostedService<LifecycleAdvancerService>();
+builder.Services.AddHostedService<NotificationDispatcherService>(); // NUEVO MOTOR DE CONSOLIDACION
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -13,6 +15,7 @@ using Sitrac.Service.Configuration;
 using Sitrac.Service.Dtos;
 using Sitrac.Service.Helpers;
 using Sitrac.Service.Interfaces;
+using Sitrac.Repository.Models;
 
 namespace Sitrac.Service
 {
@@ -20,7 +23,7 @@ namespace Sitrac.Service
     {
         private readonly SmtpSettings _smtpSettings;
         private readonly TeamsSettings _teamsSettings;
-        private readonly FrontendSettings _frontendSettings; // <-- NUEVO
+        private readonly FrontendSettings _frontendSettings;
         private readonly ILogger<NotificacionService> _logger;
 
         private static readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -30,12 +33,12 @@ namespace Sitrac.Service
         public NotificacionService(
             IOptions<SmtpSettings> smtpOptions,
             IOptions<TeamsSettings> teamsOptions,
-            IOptions<FrontendSettings> frontendOptions, // <-- NUEVO
+            IOptions<FrontendSettings> frontendOptions,
             ILogger<NotificacionService> logger)
         {
             _smtpSettings = smtpOptions.Value;
             _teamsSettings = teamsOptions.Value;
-            _frontendSettings = frontendOptions.Value;  // <-- NUEVO
+            _frontendSettings = frontendOptions.Value;
             _logger = logger;
         }
 
@@ -107,6 +110,59 @@ namespace Sitrac.Service
                 _logger.LogError(ex, "[Notificacion][Teams] Evento: Error Ticket: {Ticket} Score: {Score}", ticketId, prioridadScore);
                 return ResultadoEnvio.Fallo(ex.Message);
             }
+        }
+
+        public async Task<ResultadoEnvio> EnviarResumenConsolidadoAsync(List<NotificacionLog> pendientes, CancellationToken cancellationToken = default)
+        {
+            if (pendientes == null || pendientes.Count == 0) return ResultadoEnvio.Ok();
+
+            var correos = pendientes.Where(p => p.Canal == "Email").ToList();
+            var teams = pendientes.Where(p => p.Canal == "Teams").ToList();
+
+            var resultadoGeneral = ResultadoEnvio.Ok();
+
+            // 1. Procesar Correos
+            if (correos.Any())
+            {
+                var destinatario = _smtpSettings.DestinatarioDemo;
+                var asunto = correos.Count == 1 
+                    ? $"[URGENTE] Nuevo Incidente Registrado - Ley N° 21.663"
+                    : $"[RESUMEN] {correos.Count} Nuevos Incidentes requieren atención - Ley N° 21.663";
+                
+                var cuerpo = ConstruirCuerpoEmailConsolidado(correos);
+                var res = await EnviarEmailConReintentosAsync(destinatario, asunto, cuerpo, "CONSOLIDADO", cancellationToken);
+                if (!res.Exito) resultadoGeneral = res;
+            }
+
+            // 2. Procesar Teams
+            if (teams.Any() && _teamsSettings.EstaConfigurado())
+            {
+                try
+                {
+                    var payload = ConstruirPayloadTeamsConsolidado(teams);
+                    var json = JsonSerializer.Serialize(payload);
+                    using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    cts.CancelAfter(_teamsSettings.TimeoutMs);
+
+                    var response = await _httpClient.PostAsync(_teamsSettings.WebhookUrl, content, cts.Token);
+                    
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                        _logger.LogWarning("[Notificacion][Teams] Evento: FalloEnvioConsolidado Error: HTTP {Status} - {Body}", (int)response.StatusCode, body);
+                        resultadoGeneral = ResultadoEnvio.Fallo($"HTTP {response.StatusCode}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[Notificacion][Teams] Evento: ErrorConsolidado");
+                    resultadoGeneral = ResultadoEnvio.Fallo(ex.Message);
+                }
+            }
+
+            return resultadoGeneral;
         }
 
         private async Task<ResultadoEnvio> EnviarEmailConReintentosAsync(string destinatario, string asunto, string cuerpoHtml, string ticketId, CancellationToken cancellationToken)
@@ -201,7 +257,6 @@ namespace Sitrac.Service
             }
         }
 
-        // Ya NO es estático para poder leer _frontendSettings
         private object ConstruirPayloadTeamsAdaptiveCard(
             long idIncidente, string ticketId, string sistema, int gravedad, string clasificacion, string estado, double prioridadScore, string hitoPendiente, string? razon)
         {
@@ -258,7 +313,6 @@ namespace Sitrac.Service
                                     spacing = "Medium"
                                 }
                             },
-                            // <-- NUEVO BLOQUE DE ACCIÓN (BOTÓN DE TEAMS)
                             actions = new object[]
                             {
                                 new
@@ -274,7 +328,79 @@ namespace Sitrac.Service
             };
         }
 
-        // Ya NO es estático
+        private object ConstruirPayloadTeamsConsolidado(List<NotificacionLog> pendientes)
+        {
+            var urlDirecta = $"{_frontendSettings.BaseUrl}/index.html";
+            
+            // Agrupación por Gravedad
+            var criticos = pendientes.Where(p => p.CodTipoGravedad == 4).ToList();
+            var altos = pendientes.Where(p => p.CodTipoGravedad == 3).ToList();
+            var normales = pendientes.Where(p => p.CodTipoGravedad <= 2).ToList();
+
+            var listaItems = new List<object>();
+
+            if (criticos.Any())
+            {
+                listaItems.Add(new { type = "TextBlock", text = $"🔴 **CRÍTICOS ({criticos.Count})**", color = "Attention", weight = "Bolder", spacing = "Medium" });
+                foreach (var item in criticos) listaItems.Add(new { type = "TextBlock", text = $"• [{item.Destinatario}] {item.SistemaAfectado}", wrap = true, spacing = "None" });
+            }
+            if (altos.Any())
+            {
+                listaItems.Add(new { type = "TextBlock", text = $"🟠 **ALTOS ({altos.Count})**", color = "Warning", weight = "Bolder", spacing = "Medium" });
+                foreach (var item in altos) listaItems.Add(new { type = "TextBlock", text = $"• [{item.Destinatario}] {item.SistemaAfectado}", wrap = true, spacing = "None" });
+            }
+            if (normales.Any())
+            {
+                listaItems.Add(new { type = "TextBlock", text = $"🟡 **MEDIOS/BAJOS ({normales.Count})**", color = "Default", weight = "Bolder", spacing = "Medium" });
+                foreach (var item in normales) listaItems.Add(new { type = "TextBlock", text = $"• [{item.Destinatario}] {item.SistemaAfectado}", wrap = true, spacing = "None" });
+            }
+
+            return new
+            {
+                type = "message",
+                attachments = new object[]
+                {
+                    new
+                    {
+                        contentType = "application/vnd.microsoft.card.adaptive",
+                        contentUrl = (string?)null,
+                        content = new
+                        {
+                            type = "AdaptiveCard",
+                            version = "1.4",
+                            body = new object[]
+                            {
+                                new
+                                {
+                                    type = "Container",
+                                    style = "attention",
+                                    items = new object[]
+                                    {
+                                        new { type = "TextBlock", text = $"🚨 {pendientes.Count} Incidentes requieren atención", weight = "Bolder", size = "Large", color = "Attention" },
+                                        new { type = "TextBlock", text = "Resumen consolidado de los últimos minutos", isSubtle = true, size = "Small", wrap = true },
+                                    }
+                                },
+                                new
+                                {
+                                    type = "Container",
+                                    items = listaItems.ToArray()
+                                }
+                            },
+                            actions = new object[]
+                            {
+                                new
+                                {
+                                    type = "Action.OpenUrl",
+                                    title = "🔗 Ir a la Consola SITRAC",
+                                    url = urlDirecta
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
         private string ConstruirCuerpoEmail(long idIncidente, string ticketId, string sistema, int horasSla)
         {
             var ticketSafe = System.Net.WebUtility.HtmlEncode(ticketId);
@@ -299,12 +425,58 @@ namespace Sitrac.Service
             sb.Append("<td style='padding:10px;border:1px solid #e9ebed;color:#c4161c;font-weight:bold'>").Append(horasSafe).Append(" horas</td></tr>");
             sb.Append("</table>");
             
-            // <-- NUEVO BOTÓN HTML
             sb.Append("<div style='text-align: center; margin-top: 25px;'>");
             sb.AppendFormat("<a href='{0}' style='background-color: #0972d3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Revisar Incidente en SITRAC</a>", urlDirecta);
             sb.Append("</div>");
 
             sb.Append("<p style='margin-top:20px; font-size:12px; color:#6b7785;'>Ingrese a la consola SITRAC para revisar el caso y confirmar acciones.</p>");
+            sb.Append("</div>");
+            sb.Append("</div>");
+
+            return sb.ToString();
+        }
+
+        private string ConstruirCuerpoEmailConsolidado(List<NotificacionLog> pendientes)
+        {
+            var urlDirecta = $"{_frontendSettings.BaseUrl}/index.html";
+            var sb = new StringBuilder();
+            sb.Append("<div style='font-family: Arial, sans-serif; max-width: 640px;'>");
+            sb.Append("<div style='background:#0f1b2a;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0'>");
+            sb.Append("<h2 style='margin:0'>SITRAC · ANCI — Resumen de Alertas</h2>");
+            sb.Append("<p style='margin:4px 0 0;font-size:12px;color:#a9b6c6'>Ley N° 21.663</p>");
+            sb.Append("</div>");
+            sb.Append("<div style='border:1px solid #d5dbdb;border-top:none;padding:20px;border-radius:0 0 8px 8px'>");
+            sb.Append($"<p>Se han registrado <b>{pendientes.Count} incidentes</b> que requieren tu atención inmediata en los últimos minutos.</p>");
+            
+            // Agrupación por Gravedad
+            var criticos = pendientes.Where(p => p.CodTipoGravedad == 4).ToList();
+            var altos = pendientes.Where(p => p.CodTipoGravedad == 3).ToList();
+            var normales = pendientes.Where(p => p.CodTipoGravedad <= 2).ToList();
+
+            if (criticos.Any())
+            {
+                sb.Append("<h3 style='color:#c4161c;margin-top:20px;'>🔴 Críticos (").Append(criticos.Count).Append(")</h3><ul style='padding-left:20px'>");
+                foreach(var p in criticos) sb.Append($"<li style='margin-bottom:5px'>Ticket: <b>{p.Destinatario}</b> - {p.SistemaAfectado}</li>");
+                sb.Append("</ul>");
+            }
+            if (altos.Any())
+            {
+                sb.Append("<h3 style='color:#F58220;margin-top:20px;'>🟠 Altos (").Append(altos.Count).Append(")</h3><ul style='padding-left:20px'>");
+                foreach(var p in altos) sb.Append($"<li style='margin-bottom:5px'>Ticket: <b>{p.Destinatario}</b> - {p.SistemaAfectado}</li>");
+                sb.Append("</ul>");
+            }
+            if (normales.Any())
+            {
+                sb.Append("<h3 style='color:#8F7D00;margin-top:20px;'>🟡 Medios/Bajos (").Append(normales.Count).Append(")</h3><ul style='padding-left:20px'>");
+                foreach(var p in normales) sb.Append($"<li style='margin-bottom:5px'>Ticket: <b>{p.Destinatario}</b> - {p.SistemaAfectado}</li>");
+                sb.Append("</ul>");
+            }
+
+            sb.Append("<div style='text-align: center; margin-top: 25px;'>");
+            sb.AppendFormat("<a href='{0}' style='background-color: #0972d3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Ir a la Consola SITRAC</a>", urlDirecta);
+            sb.Append("</div>");
+
+            sb.Append("<p style='margin-top:20px; font-size:12px; color:#6b7785;'>Ingrese a la consola SITRAC para revisar los casos pendientes.</p>");
             sb.Append("</div>");
             sb.Append("</div>");
 

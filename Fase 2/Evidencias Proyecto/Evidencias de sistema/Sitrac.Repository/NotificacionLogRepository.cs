@@ -5,7 +5,6 @@ using Sitrac.Repository.Models;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Sitrac.Repository;
 
 namespace Sitrac.Repository
 {
@@ -16,6 +15,21 @@ namespace Sitrac.Repository
         public NotificacionLogRepository(IDbConnectionFactory connectionFactory)
         {
             _connectionFactory = connectionFactory;
+        }
+
+        public async Task InsertarAsync(NotificacionLog log)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            const string sql = @"
+                INSERT INTO TbSitracNotificacionLog (
+                    IdHito, NumeroNotificacion, Destinatario, Canal, IdRegla, Estado,
+                    Intentos, ProximoReintentoAt, FechaProgramada
+                ) VALUES (
+                    @IdHito, @NumeroNotificacion, @Destinatario, @Canal, @IdRegla, @Estado,
+                    @Intentos, @ProximoReintentoAt, @FechaProgramada
+                )";
+
+            await connection.ExecuteAsync(sql, log);
         }
 
         public async Task InsertarLoteAsync(IEnumerable<NotificacionLog> logs)
@@ -38,13 +52,16 @@ namespace Sitrac.Repository
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 SELECT TOP (@Maximo)
-                    IdNotificacion, IdHito, NumeroNotificacion, Destinatario, Canal, IdRegla,
-                    Estado, Intentos, ProximoReintentoAt, FechaProgramada, FechaEnvio, MensajeError
-                FROM TbSitracNotificacionLog
-                WHERE Estado = 'Pendiente'
-                  AND AuditNotDeleted = 1
-                  AND (ProximoReintentoAt IS NULL OR ProximoReintentoAt <= GETUTCDATE())
-                ORDER BY FechaProgramada ASC";
+                    l.IdNotificacion, l.IdHito, l.NumeroNotificacion, l.Destinatario, l.Canal, l.IdRegla,
+                    l.Estado, l.Intentos, l.ProximoReintentoAt, l.FechaProgramada, l.FechaEnvio, l.MensajeError,
+                    i.CodTipoGravedad, i.DescripcionSistemaAfectado AS SistemaAfectado
+                FROM TbSitracNotificacionLog l
+                INNER JOIN TbSitracHito h ON l.IdHito = h.IdHito
+                INNER JOIN TbSitracIncidente i ON h.IdIncidente = i.IdIncidente
+                WHERE l.Estado = 'Pendiente'
+                  AND l.AuditNotDeleted = 1
+                  AND l.FechaProgramada <= GETUTCDATE()
+                ORDER BY l.FechaProgramada ASC";
 
             return await connection.QueryAsync<NotificacionLog>(sql, new { Maximo = maximo });
         }
@@ -96,4 +113,3 @@ namespace Sitrac.Repository
         }
     }
 }
-

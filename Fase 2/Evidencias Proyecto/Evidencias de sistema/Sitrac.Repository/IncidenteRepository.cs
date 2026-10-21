@@ -20,7 +20,6 @@ namespace Sitrac.Repository
         public async Task<SitracIncidente?> ObtenerPorIdAsync(long idIncidente)
         {
             using var connection = _connectionFactory.CreateConnection();
-
             const string sql = @"
                 SELECT 
                     IdIncidente, FechaTomaConocimiento, FechaRegistroSistema, 
@@ -96,6 +95,50 @@ namespace Sitrac.Repository
                         @IdResponsableCambia, @Comentario
                     )";
                 await connection.ExecuteAsync(sqlInsert, historial, transaction);
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+
+        public async Task AvanzarEstadoConHitosTransaccionalAsync(long idIncidente, long nuevoEstado, SitracEventoHistorial historial, Hito? hitoACerrar, Hito? hitoACrear, DateTime ahora)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+
+            try
+            {
+                if (hitoACerrar != null)
+                {
+                    const string sqlCerrar = @"
+                        UPDATE TbSitracHito
+                        SET Estado = 'Cumplido', FechaCumplimiento = @Ahora, AuditLastUpdateDate = GETUTCDATE()
+                        WHERE IdHito = @IdHito AND Estado = 'Pendiente'";
+                    await connection.ExecuteAsync(sqlCerrar, new { IdHito = hitoACerrar.IdHito, Ahora = ahora }, transaction);
+                }
+
+                if (hitoACrear != null)
+                {
+                    const string sqlCrear = @"
+                        INSERT INTO TbSitracHito (IdIncidente, CodTipoHito, Secuencia, FechaBase, FechaLimite, Estado)
+                        VALUES (@IdIncidente, @CodTipoHito, @Secuencia, @FechaBase, @FechaLimite, 'Pendiente');";
+                    await connection.ExecuteAsync(sqlCrear, hitoACrear, transaction);
+                }
+
+                const string sqlUpdate = @"
+                    UPDATE TbSitracIncidente SET CodTipoEstadoIncidente = @NuevoEstado, AuditLastUpdateDate = GETDATE()
+                    WHERE IdIncidente = @IdIncidente";
+                await connection.ExecuteAsync(sqlUpdate, new { NuevoEstado = nuevoEstado, IdIncidente = idIncidente }, transaction);
+
+                const string sqlInsertHist = @"
+                    INSERT INTO TbSitracEventoHistorial (IdIncidente, CodigoTicketInvgate, IdTipoAmbitoCambio, IdTipoEstadoIncidenteAnterior, IdTipoEstadoIncidenteNuevo, IdResponsableCambia, Comentario)
+                    VALUES (@IdIncidente, @CodigoTicketInvgate, @IdTipoAmbitoCambio, @IdTipoEstadoIncidenteAnterior, @IdTipoEstadoIncidenteNuevo, @IdResponsableCambia, @Comentario)";
+                await connection.ExecuteAsync(sqlInsertHist, historial, transaction);
 
                 transaction.Commit();
             }
@@ -213,8 +256,6 @@ namespace Sitrac.Repository
             return await connection.QueryAsync<EventoHistorialResumen>(sql, new { IdIncidente = idIncidente });
         }
 
-        // ===== MÉTODOS TRANSACCIONALES NUEVOS (BLOQUE B) =====
-
         public async Task ConfirmarAvisoTransaccionalAsync(
             long idIncidente, long nuevoEstado, SitracEventoHistorial historial,
             Hito? hitoACerrar, Hito? hitoACrear, DateTime ahora)
@@ -263,7 +304,7 @@ namespace Sitrac.Repository
 
         public async Task RegistrarInformeTransaccionalAsync(
             long idIncidente, long? nuevoEstado, SitracEventoHistorial historial,
-            Hito hitoACerrar, Hito? hitoACrear, DateTime ahora)
+            Hito hitoACerrar, Hito? hitoACrear, DateTime ahora, InformePreliminar? informeP, InformeCierre? informeC, RevisionDatosPersonales? revisionDp)
         {
             using var connection = _connectionFactory.CreateConnection();
             connection.Open();
@@ -271,6 +312,69 @@ namespace Sitrac.Repository
 
             try
             {
+                // 1. Insertar Informe Preliminar
+                if (informeP != null)
+                {
+                    const string sqlInsertInformeP = @"
+                        INSERT INTO TbSitracInformePreliminar (
+                            IdIncidente, CodTipoGravedad, FechaEstimadaInicio, IndiciosOcurrencia, ActivosAfectados, 
+                            EvidenciaDisponible, EvidenciaPosibleDelito, RepercusionesOtrasInstituciones, OtraInformacionRelevante, 
+                            EvaluacionGravedadImpacto, EstadoActualIncidente, DescripcionIocs, DescripcionMedidasMitigacion, 
+                            HayDatosPersonales, FechaNotificacionDpo, ResponsableDpo, FechaEnvio
+                        ) VALUES (
+                            @IdIncidente, 1, @FechaEstimadaInicio, @IndiciosOcurrencia, @ActivosAfectados, 
+                            @EvidenciaDisponible, @EvidenciaPosibleDelito, @RepercusionesOtrasInstituciones, @OtraInformacionRelevante, 
+                            @EvaluacionGravedadImpacto, @EstadoActualIncidente, @DescripcionIocs, @DescripcionMedidasMitigacion, 
+                            @HayDatosPersonales, @FechaNotificacionDpo, @ResponsableDpo, @FechaEnvio
+                        );";
+                    await connection.ExecuteAsync(sqlInsertInformeP, informeP, transaction);
+                }
+
+                // 2. Insertar Informe Final
+                if (informeC != null)
+                {
+                    const string sqlInsertInformeC = @"
+                        INSERT INTO TbSitracInformeCierre (
+                            IdIncidente, CodTipoInformeCierre, IdResponsableConfirma, FechaEstimadaInicio, IndiciosOcurrencia, 
+                            ActivosAfectados, EvidenciaPosibleDelito, RepercusionesOtrasInstituciones, OtraInformacionRelevante, 
+                            DescripcionIocs, DescripcionDetallada, TipoAmenazaCausaPrincipal, RepercusionesTransfronterizas, 
+                            MedidasMitigacionAplicadas, VulnerabilidadesExplotadas, AplicacionesAbusivas, ControlesTecnicosPrevistos, 
+                            CausasAusenciaControles, MedidasFrenteAlertasCsirt, HayDatosPersonales, FechaNotificacionDpo, ResponsableDpo, FechaEnvio
+                        ) VALUES (
+                            @IdIncidente, 1, 1, @FechaEstimadaInicio, @IndiciosOcurrencia, 
+                            @ActivosAfectados, @EvidenciaPosibleDelito, @RepercusionesOtrasInstituciones, @OtraInformacionRelevante, 
+                            @DescripcionIocs, @DescripcionDetallada, @TipoAmenazaCausaPrincipal, @RepercusionesTransfronterizas, 
+                            @MedidasMitigacionAplicadas, @VulnerabilidadesExplotadas, @AplicacionesAbusivas, @ControlesTecnicosPrevistos, 
+                            @CausasAusenciaControles, @MedidasFrenteAlertasCsirt, @HayDatosPersonales, @FechaNotificacionDpo, @ResponsableDpo, @FechaEnvio
+                        );";
+                    await connection.ExecuteAsync(sqlInsertInformeC, informeC, transaction);
+                }
+
+                // 3. Insertar / Actualizar Revisión DPO (Opcional, usamos la tabla si se necesita auditoría profunda)
+                if (revisionDp != null)
+                {
+                    const string sqlUpsertDpo = @"
+                        IF EXISTS (SELECT 1 FROM TbSitracRevisionDatosPersonales WHERE IdIncidente = @IdIncidente)
+                        BEGIN
+                            UPDATE TbSitracRevisionDatosPersonales
+                            SET CodTipoDatosPersonales = @CodTipoDatosPersonales,
+                                FechaNotificaDpo = @FechaNotificaDpo,
+                                IdResponsableValida = @IdResponsableValida,
+                                AuditLastUpdateDate = GETDATE()
+                            WHERE IdIncidente = @IdIncidente
+                        END
+                        ELSE
+                        BEGIN
+                            INSERT INTO TbSitracRevisionDatosPersonales (
+                                IdIncidente, CodTipoDatosPersonales, FechaAuditoria, FechaNotificaDpo, IdResponsableValida, CodTipoEstadoRevisionDp
+                            ) VALUES (
+                                @IdIncidente, @CodTipoDatosPersonales, GETDATE(), @FechaNotificaDpo, @IdResponsableValida, @CodTipoEstadoRevisionDp
+                            )
+                        END";
+                    await connection.ExecuteAsync(sqlUpsertDpo, revisionDp, transaction);
+                }
+
+                // 4. Cerrar Hito
                 const string sqlCerrar = @"
                     UPDATE TbSitracHito
                     SET Estado = 'Cumplido', FechaCumplimiento = @Ahora, ReferenciaExterna = @Ref, AuditLastUpdateDate = GETUTCDATE()
@@ -279,6 +383,7 @@ namespace Sitrac.Repository
 
                 if (filas == 0) throw new InvalidOperationException($"El hito {hitoACerrar.CodTipoHito} ya estaba cerrado o no existe.");
 
+                // 5. Crear Hito Siguiente
                 if (hitoACrear != null)
                 {
                     const string sqlCrear = @"
@@ -287,6 +392,7 @@ namespace Sitrac.Repository
                     await connection.ExecuteAsync(sqlCrear, hitoACrear, transaction);
                 }
 
+                // 6. Actualizar Estado
                 if (nuevoEstado.HasValue)
                 {
                     const string sqlUpdate = @"
@@ -295,6 +401,7 @@ namespace Sitrac.Repository
                     await connection.ExecuteAsync(sqlUpdate, new { NuevoEstado = nuevoEstado.Value, IdIncidente = idIncidente }, transaction);
                 }
 
+                // 7. Historial
                 const string sqlInsertHist = @"
                     INSERT INTO TbSitracEventoHistorial (IdIncidente, CodigoTicketInvgate, IdTipoAmbitoCambio, IdTipoEstadoIncidenteAnterior, IdTipoEstadoIncidenteNuevo, IdResponsableCambia, Comentario)
                     VALUES (@IdIncidente, @CodigoTicketInvgate, @IdTipoAmbitoCambio, @IdTipoEstadoIncidenteAnterior, @IdTipoEstadoIncidenteNuevo, @IdResponsableCambia, @Comentario)";

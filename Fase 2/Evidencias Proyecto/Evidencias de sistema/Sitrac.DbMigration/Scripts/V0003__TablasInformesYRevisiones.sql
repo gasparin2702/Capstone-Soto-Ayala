@@ -73,15 +73,32 @@ CREATE TABLE TbSitracTipoInformeCierre (
     CONSTRAINT PK_TbSitracTipoInformeCierre_IdTipoInformeCierre PRIMARY KEY (IdTipoInformeCierre)
 );
 
+-- ==============================================================================
+-- TABLA: INFORME PRELIMINAR (Segundo reporte 24/72h)
+-- ==============================================================================
 CREATE TABLE TbSitracInformePreliminar (
     IdInformePreliminar BIGINT IDENTITY(1,1) NOT NULL,
     IdIncidente BIGINT NOT NULL,
     IdComunicacion BIGINT NULL,
     CodTipoGravedad BIGINT NOT NULL,
     CodTipoClasificacionArt27 BIGINT NULL,
-    DescripcionImpacto VARCHAR(MAX) NULL,
+    FechaEstimadaInicio DATETIME NULL,
+    IndiciosOcurrencia VARCHAR(MAX) NULL,
+    ActivosAfectados VARCHAR(MAX) NULL,
+    EvidenciaDisponible VARCHAR(MAX) NULL,
+    EvidenciaPosibleDelito VARCHAR(MAX) NULL,
+    RepercusionesOtrasInstituciones VARCHAR(MAX) NULL,
+    OtraInformacionRelevante VARCHAR(MAX) NULL,
+    EvaluacionGravedadImpacto VARCHAR(MAX) NULL,
+    EstadoActualIncidente VARCHAR(MAX) NULL,
     DescripcionIocs VARCHAR(MAX) NULL,
     DescripcionMedidasMitigacion VARCHAR(MAX) NULL,
+
+    -- Bloque DPO / Datos Personales
+    HayDatosPersonales VARCHAR(20) NULL,
+    FechaNotificacionDpo DATETIME NULL,
+    ResponsableDpo VARCHAR(150) NULL,
+
     FechaEnvio DATETIME NULL,
     AuditNotDeleted BIT NOT NULL CONSTRAINT DF_TbSitracInformePreliminar_AuditNotDeleted DEFAULT 1,
     AuditCreateDate DATETIME NOT NULL CONSTRAINT DF_TbSitracInformePreliminar_AuditCreateDate DEFAULT GETDATE(),
@@ -94,16 +111,38 @@ CREATE TABLE TbSitracInformePreliminar (
     CONSTRAINT FK_TbSitracInformePreliminar_TbSitracTipoClasificacionArt27 FOREIGN KEY (CodTipoClasificacionArt27) REFERENCES TbSitracTipoClasificacionArt27(IdTipoClasificacionArt27)
 );
 
+-- ==============================================================================
+-- TABLA: INFORME FINAL (Cierre y OIV)
+-- ==============================================================================
 CREATE TABLE TbSitracInformeCierre (
     IdInformeCierre BIGINT IDENTITY(1,1) NOT NULL,
     IdIncidente BIGINT NOT NULL,
     IdComunicacion BIGINT NULL,
     CodTipoInformeCierre BIGINT NOT NULL,
-    DescripcionCronologiaCausaRaiz VARCHAR(MAX) NULL,
-    DescripcionEvaluacionImpacto VARCHAR(MAX) NULL,
-    DescripcionMedidasMitigacion VARCHAR(MAX) NULL,
-    DescripcionLeccionesAprendidas VARCHAR(MAX) NULL,
-    DescripcionPlanPrevencion VARCHAR(MAX) NULL,
+    FechaEstimadaInicio DATETIME NULL,
+    IndiciosOcurrencia VARCHAR(MAX) NULL,
+    ActivosAfectados VARCHAR(MAX) NULL,
+    EvidenciaPosibleDelito VARCHAR(MAX) NULL,
+    RepercusionesOtrasInstituciones VARCHAR(MAX) NULL,
+    OtraInformacionRelevante VARCHAR(MAX) NULL,
+    DescripcionIocs VARCHAR(MAX) NULL,
+    DescripcionDetallada VARCHAR(MAX) NULL,
+    TipoAmenazaCausaPrincipal VARCHAR(MAX) NULL,
+    RepercusionesTransfronterizas VARCHAR(MAX) NULL,
+    MedidasMitigacionAplicadas VARCHAR(MAX) NULL,
+    
+    -- Campos exclusivos OIV
+    VulnerabilidadesExplotadas VARCHAR(MAX) NULL,
+    AplicacionesAbusivas VARCHAR(MAX) NULL,
+    ControlesTecnicosPrevistos VARCHAR(MAX) NULL,
+    CausasAusenciaControles VARCHAR(MAX) NULL,
+    MedidasFrenteAlertasCsirt VARCHAR(MAX) NULL,
+
+    -- Bloque DPO / Datos Personales
+    HayDatosPersonales VARCHAR(20) NULL,
+    FechaNotificacionDpo DATETIME NULL,
+    ResponsableDpo VARCHAR(150) NULL,
+
     FechaEnvio DATETIME NULL,
     IdResponsableConfirma BIGINT NOT NULL,
     AuditNotDeleted BIT NOT NULL CONSTRAINT DF_TbSitracInformeCierre_AuditNotDeleted DEFAULT 1,

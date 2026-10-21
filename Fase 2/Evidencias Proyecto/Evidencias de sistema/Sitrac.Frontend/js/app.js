@@ -179,7 +179,6 @@ async function openRow(dbId, opts = {}) {
     else if (estadoUI === 'Aviso enviado') estadoUI = 'Aviso Temprano';
     else if (estadoUI === 'Preliminar enviado') estadoUI = 'Informe Preliminar';
 
-    // Derivar sent* desde hitos (Lógica implementada en el Bloque B)
     const hitoByTipo = {};
     (det.hitos || []).forEach(h => { hitoByTipo[h.codTipoHito] = h; });
     const sentFromHito = (cod) => {
@@ -578,20 +577,97 @@ let lastFocus = null;
 function modal(kind) {
   if (!inc) return;
   lastFocus = document.activeElement;
-  const cfg = {
-    aviso: { t: 'Confirmar aviso temprano enviado', d: 'Registra que el aviso fue enviado a la ANCI.', btn: 'Confirmar envío', ph: 'Ej.: Aviso enviado por el portal de la ANCI, folio ANCI-2026-…', extra: '' },
-    informe: {
-      t: 'Adjuntar informe', d: 'Registra el envío del informe y vincula el documento.', btn: 'Registrar informe', ph: 'Resume qué contiene el informe y cómo se envió a la ANCI.',
-      extra: `<div class="fld"><label for="f-tipo">Tipo de informe <em>*</em></label><select id="f-tipo"><option value="P" ${inc.sent.P ? 'disabled' : ''}>Informe Preliminar</option><option value="F" ${inc.sent.F ? 'disabled' : ''} ${inc.sent.P ? 'selected' : ''}>Informe Final</option></select></div>
-      <div class="fld"><label for="f-file">Documento <em>*</em></label><input id="f-file" type="file"></div>`
-    },
-    cerrar: { t: 'Cerrar ticket', d: 'Estado terminal. El motor dejará de evaluar este incidente.', btn: 'Cerrar incidente', danger: true, ph: 'Indica el motivo del cierre y la referencia del Informe Final.', extra: '' }
-  }[kind];
+  
+  let cfg;
+
+  if (kind === 'informe') {
+    const isPreliminar = !inc.sent.P;
+    cfg = {
+      t: isPreliminar ? 'Reporte Preliminar (24/72h)' : 'Informe Final (Cierre)',
+      d: 'Complete los datos exigidos por el CSIRT Nacional.',
+      btn: 'Registrar informe oficial',
+      ph: 'Observaciones generales del envío...',
+      extra: `
+        <div class="fld"><label>Tipo de informe</label>
+          <select id="f-tipo" disabled>
+            <option value="${isPreliminar ? 'P' : 'F'}">${isPreliminar ? 'Informe Preliminar' : 'Informe Final'}</option>
+          </select>
+        </div>
+        <div class="fld"><label>Documento adjunto (Opcional)</label><input id="f-file" type="file"></div>
+        
+        <h3 style="font-size:14px;margin-top:10px;color:var(--primary)">3. Información sobre el incidente</h3>
+        <div class="fld"><label>Fecha estimada de inicio del incidente</label><input type="datetime-local" id="f-fecha-inicio"></div>
+        <div class="fld"><label>Indicios de ocurrencia</label><textarea id="f-indicios" rows="2" placeholder="Describa los indicios..."></textarea></div>
+        <div class="fld"><label>Activos y recursos afectados</label><textarea id="f-activos" rows="2" placeholder="Servidores, bases de datos, endpoints..."></textarea></div>
+        
+        ${isPreliminar ? `
+          <div class="fld"><label>Evidencia disponible</label><textarea id="f-evidencia" rows="2"></textarea></div>
+          <div class="fld"><label>Evaluación inicial de gravedad e impacto</label><textarea id="f-evaluacion" rows="2"></textarea></div>
+          <div class="fld"><label>Estado actual del incidente</label><textarea id="f-estado-actual" rows="2"></textarea></div>
+        ` : `
+          <div class="fld"><label>Descripción detallada (Gravedad e Impacto)</label><textarea id="f-desc-detallada" rows="3"></textarea></div>
+          <div class="fld"><label>Tipo de amenaza o causa principal</label><textarea id="f-tipo-amenaza" rows="2"></textarea></div>
+          <div class="fld"><label>Medidas de mitigación aplicadas</label><textarea id="f-mitigacion" rows="2"></textarea></div>
+        `}
+
+        <div class="fld"><label>Indicadores de Compromiso (IOCs)</label><textarea id="f-iocs" rows="2" placeholder="IPs, dominios, hashes..."></textarea></div>
+        <div class="fld"><label>Evidencia de posible delito</label><textarea id="f-evidencia-delito" rows="2"></textarea></div>
+        <div class="fld"><label>Repercusiones en otras instituciones</label><textarea id="f-repercusiones" rows="2"></textarea></div>
+        <div class="fld"><label>Otra información relevante</label><textarea id="f-otra-info" rows="2"></textarea></div>
+        
+        ${(!isPreliminar && inc.cls === 'OIV') ? `
+          <h3 style="font-size:14px;margin-top:10px;color:var(--danger)">4. Información Adicional OIV</h3>
+          <div class="fld"><label>Vulnerabilidades explotadas</label><textarea id="f-vulns" rows="2"></textarea></div>
+          <div class="fld"><label>Aplicaciones abusivas</label><textarea id="f-apps" rows="2"></textarea></div>
+          <div class="fld"><label>Controles técnicos previstos</label><textarea id="f-controles" rows="2"></textarea></div>
+          <div class="fld"><label>Causas de ausencia/falla de controles</label><textarea id="f-causas" rows="2"></textarea></div>
+          <div class="fld"><label>Medidas frente a alertas del CSIRT</label><textarea id="f-medidas-csirt" rows="2"></textarea></div>
+        ` : ''}
+
+        <h3 style="font-size:14px;margin-top:10px;color:var(--primary)">5. Protección de Datos Personales (DPO)</h3>
+        <div class="fld">
+          <label>¿Existen datos personales comprometidos?</label>
+          <select id="f-dp" onchange="document.getElementById('dp-extra').style.display = (this.value === '1' || this.value === '3') ? 'block' : 'none'">
+            <option value="2">No existen datos personales</option>
+            <option value="1">Sí, existen datos personales</option>
+            <option value="3">Desconocido</option>
+          </select>
+        </div>
+        <div id="dp-extra" style="display:none; margin-top:10px; padding:10px; border-left: 3px solid var(--primary); background:var(--primary-bg)">
+          <div class="fld"><label>Fecha de Notificación al DPO</label><input type="datetime-local" id="f-dp-fecha"></div>
+          <div class="fld"><label>Responsable DPO (ID o Nombre)</label><input type="text" id="f-dp-resp" placeholder="Ej: Enzo Badillo"></div>
+        </div>
+      `
+    };
+  } else {
+    cfg = {
+      aviso: { 
+        t: 'Confirmar aviso temprano enviado', 
+        d: 'Registra que el aviso fue enviado a la ANCI.', 
+        btn: 'Confirmar envío', 
+        ph: 'Ej.: Aviso enviado por el portal de la ANCI, folio ANCI-2026-…', 
+        extra: '' 
+      },
+      cerrar: { 
+        t: 'Cerrar ticket', 
+        d: 'Estado terminal. El motor dejará de evaluar este incidente.', 
+        btn: 'Cerrar incidente', 
+        danger: true, 
+        ph: 'Indica el motivo del cierre y la referencia del Informe Final.', 
+        extra: '' 
+      }
+    }[kind];
+  }
+
   if (!cfg) return;
 
   $('#modal').innerHTML = `<header><div><h2 id="mt">${cfg.t}</h2><p>${esc(inc.id)} · ${cfg.d}</p></div><button class="x" data-close aria-label="Cerrar">${ic('x')}</button></header>
-    <form id="mf" novalidate><div class="body">${cfg.extra}
-      <div class="fld"><label for="f-com">Comentario <em>(obligatorio)</em></label><textarea id="f-com" placeholder="${cfg.ph}" maxlength="500"></textarea><div class="cnt"><span id="f-hint">Cuéntale al equipo qué hiciste (mínimo 15 caracteres)</span><span id="f-n" class="mono">0/500</span></div></div>
+    <form id="mf" novalidate><div class="body" style="max-height: 70vh; overflow-y: auto;">${cfg.extra}
+      <div class="fld" style="margin-top:15px; border-top: 1px solid #ccc; padding-top:15px;">
+        <label for="f-com">Observaciones / Comentario de auditoría <em>(obligatorio)</em></label>
+        <textarea id="f-com" placeholder="${cfg.ph}" maxlength="500"></textarea>
+        <div class="cnt"><span id="f-hint">Mínimo 15 caracteres</span><span id="f-n" class="mono">0/500</span></div>
+      </div>
       <div class="audit">${ic('lock')}<span>Esto quedará firmado como <b>C. Fuentes</b> con la hora del servidor y se persistirá en <b>TbSitracEventoHistorial</b>.</span></div></div>
     <footer><button type="button" class="mb" data-close>Cancelar</button><button type="submit" class="mb go ${cfg.danger ? 'danger' : ''}" id="f-ok" disabled>${cfg.btn}</button></footer></form>`;
   $('#ov').hidden = false;
@@ -600,13 +676,10 @@ function modal(kind) {
   const check = () => {
     const n = com.value.trim().length;
     $('#f-n').textContent = com.value.length + '/500';
-    const file = $('#f-file');
-    const fileOk = !file || file.files.length > 0;
-    ok.disabled = !(n >= 15 && fileOk);
+    ok.disabled = !(n >= 15);
     $('#f-hint').style.color = n >= 15 ? 'var(--ok)' : 'var(--fg-3)';
   };
   com.addEventListener('input', check);
-  const f = $('#f-file'); if (f) f.addEventListener('change', check);
 
   $('#mf').addEventListener('submit', async e => {
     e.preventDefault();
@@ -616,11 +689,50 @@ function modal(kind) {
     const tipoInforme = $('#f-tipo') ? $('#f-tipo').value : null;
     const archivo = $('#f-file')?.files?.[0]?.name || null;
 
+    const payloadExtra = {};
+    if (kind === 'informe') {
+      payloadExtra.fechaEstimadaInicio = $('#f-fecha-inicio')?.value || null;
+      payloadExtra.indiciosOcurrencia = $('#f-indicios')?.value || null;
+      payloadExtra.activosAfectados = $('#f-activos')?.value || null;
+      payloadExtra.descripcionIocs = $('#f-iocs')?.value || null;
+      payloadExtra.evidenciaPosibleDelito = $('#f-evidencia-delito')?.value || null;
+      payloadExtra.repercusionesOtrasInstituciones = $('#f-repercusiones')?.value || null;
+      payloadExtra.otraInformacionRelevante = $('#f-otra-info')?.value || null;
+
+      if (tipoInforme === 'P') {
+        payloadExtra.evidenciaDisponible = $('#f-evidencia')?.value || null;
+        payloadExtra.evaluacionGravedadImpacto = $('#f-evaluacion')?.value || null;
+        payloadExtra.estadoActualIncidente = $('#f-estado-actual')?.value || null;
+      } else {
+        payloadExtra.descripcionDetallada = $('#f-desc-detallada')?.value || null;
+        payloadExtra.tipoAmenazaCausaPrincipal = $('#f-tipo-amenaza')?.value || null;
+        payloadExtra.medidasMitigacionAplicadas = $('#f-mitigacion')?.value || null;
+        
+        if (inc.cls === 'OIV') {
+          payloadExtra.vulnerabilidadesExplotadas = $('#f-vulns')?.value || null;
+          payloadExtra.aplicacionesAbusivas = $('#f-apps')?.value || null;
+          payloadExtra.controlesTecnicosPrevistos = $('#f-controles')?.value || null;
+          payloadExtra.causasAusenciaControles = $('#f-causas')?.value || null;
+          payloadExtra.medidasFrenteAlertasCsirt = $('#f-medidas-csirt')?.value || null;
+        }
+      }
+
+      const dpVal = $('#f-dp')?.value;
+      if (dpVal) {
+        payloadExtra.codTipoDatosPersonales = parseInt(dpVal);
+        if (dpVal === '1' || dpVal === '3') {
+          payloadExtra.fechaNotificacionDpo = $('#f-dp-fecha')?.value || null;
+          const respStr = $('#f-dp-resp')?.value;
+          payloadExtra.idResponsableDpo = respStr ? 1 : null;
+        }
+      }
+    }
+
     ok.disabled = true;
     ok.textContent = 'Procesando…';
 
     try {
-      await commit(kind, comment, tipoInforme, archivo);
+      await commit(kind, comment, tipoInforme, archivo, payloadExtra);
     } catch (err) {
       console.error('[modal/submit] error:', err);
       toast('Error al registrar la acción.');
@@ -643,7 +755,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------- commit ---------- */
-async function commit(kind, comment, tipo, archivo) {
+async function commit(kind, comment, tipo, archivo, extraData = {}) {
   if (!inc || !inc.dbId) throw new Error('No hay incidente activo.');
 
   let endpoint, payload;
@@ -652,7 +764,7 @@ async function commit(kind, comment, tipo, archivo) {
     payload = { comentario: comment, referenciaEnvio: null };
   } else if (kind === 'informe') {
     endpoint = 'registrarInforme';
-    payload = { comentario: comment, tipo: tipo || 'P', nombreArchivo: archivo };
+    payload = { comentario: comment, tipo: tipo || 'P', nombreArchivo: archivo, ...extraData };
   } else if (kind === 'cerrar') {
     endpoint = 'cerrarIncidente';
     payload = { comentario: comment, referenciaCierre: null };

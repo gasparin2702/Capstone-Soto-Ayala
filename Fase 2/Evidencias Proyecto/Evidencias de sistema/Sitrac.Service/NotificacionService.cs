@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -163,6 +164,51 @@ namespace Sitrac.Service
             }
 
             return resultadoGeneral;
+        }
+
+        public async Task<ResultadoEnvio> EnviarAlertaEscalamientoAsync(
+            long idIncidente, string ticketId, string sistema, int gravedad, string clasificacion, 
+            string hitoNombre, string reglaDescripcion, DateTime fechaLimite, double minutosRestantes, 
+            CancellationToken cancellationToken = default)
+        {
+            bool vencido = minutosRestantes <= 0;
+            var asunto = $"[ESCALAMIENTO SLA] {ticketId} - {hitoNombre} - {(vencido ? "VENCIDO" : $"Faltan {Math.Round(minutosRestantes)} min")}";
+            
+            // 1. Enviar Correo
+            if (_smtpSettings.EstaConfigurado())
+            {
+                var cuerpo = ConstruirCuerpoEmailEscalamiento(ticketId, sistema, hitoNombre, reglaDescripcion, fechaLimite, minutosRestantes);
+                var res = await EnviarEmailConReintentosAsync(_smtpSettings.DestinatarioDemo, asunto, cuerpo, ticketId, cancellationToken);
+                if (!res.Exito) return res;
+            }
+
+            // 2. Enviar Teams
+            if (_teamsSettings.EstaConfigurado())
+            {
+                try
+                {
+                    var payload = ConstruirPayloadTeamsEscalamiento(idIncidente, ticketId, sistema, gravedad, clasificacion, hitoNombre, reglaDescripcion, fechaLimite, minutosRestantes);
+                    var json = JsonSerializer.Serialize(payload);
+                    using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    cts.CancelAfter(_teamsSettings.TimeoutMs);
+                    var response = await _httpClient.PostAsync(_teamsSettings.WebhookUrl, content, cts.Token);
+                    
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                        _logger.LogWarning("[Notificacion][Teams] Evento: FalloEscalamiento Ticket: {Ticket} Error: {Error}", ticketId, body);
+                        return ResultadoEnvio.Fallo($"HTTP {response.StatusCode}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[Notificacion][Teams] Evento: ErrorEscalamiento Ticket: {Ticket}", ticketId);
+                    return ResultadoEnvio.Fallo(ex.Message);
+                }
+            }
+
+            return ResultadoEnvio.Ok();
         }
 
         private async Task<ResultadoEnvio> EnviarEmailConReintentosAsync(string destinatario, string asunto, string cuerpoHtml, string ticketId, CancellationToken cancellationToken)
@@ -481,6 +527,111 @@ namespace Sitrac.Service
             sb.Append("</div>");
 
             return sb.ToString();
+        }
+
+        private string ConstruirCuerpoEmailEscalamiento(string ticketId, string sistema, string hitoNombre, string reglaDescripcion, DateTime fechaLimite, double minutosRestantes)
+        {
+            var ticketSafe = System.Net.WebUtility.HtmlEncode(ticketId);
+            var sistemaSafe = System.Net.WebUtility.HtmlEncode(sistema);
+            var hitoSafe = System.Net.WebUtility.HtmlEncode(hitoNombre);
+            var reglaSafe = System.Net.WebUtility.HtmlEncode(reglaDescripcion);
+            var fechaSafe = fechaLimite.ToString("dd-MM-yyyy HH:mm");
+            
+            var color = minutosRestantes <= 0 ? "#E4002B" : (minutosRestantes <= 60 ? "#DFC500" : "#F58220");
+            var estadoStr = minutosRestantes <= 0 ? "VENCIDO" : $"Faltan {Math.Round(minutosRestantes)} minutos";
+
+            var sb = new StringBuilder();
+            sb.Append("<div style='font-family: Arial, sans-serif; max-width: 640px;'>");
+            sb.Append($"<div style='background:{color};color:#fff;padding:16px 20px;border-radius:8px 8px 0 0'>");
+            sb.Append($"<h2 style='margin:0'>⚠️ ALERTA DE ESCALAMIENTO SLA</h2>");
+            sb.Append("<p style='margin:4px 0 0;font-size:12px'>Ley N° 21.663</p>");
+            sb.Append("</div>");
+            sb.Append("<div style='border:1px solid #d5dbdb;border-top:none;padding:20px;border-radius:0 0 8px 8px'>");
+            sb.Append($"<h3 style='color:{color};margin-top:0'>{(minutosRestantes <= 0 ? "¡PLAZO VENCIDO!" : "Plazo por vencer")}</h3>");
+            sb.Append($"<p>{reglaSafe}</p>");
+            sb.Append("<table style='border-collapse:collapse;width:100%;margin-top:15px'>");
+            sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Ticket:</td>");
+            sb.Append($"<td style='padding:10px;border:1px solid #e9ebed'>{ticketSafe}</td></tr>");
+            sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Hito:</td>");
+            sb.Append($"<td style='padding:10px;border:1px solid #e9ebed'>{hitoSafe}</td></tr>");
+            sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Fecha Límite:</td>");
+            sb.Append($"<td style='padding:10px;border:1px solid #e9ebed;font-weight:bold;color:{color}'>{fechaSafe}</td></tr>");
+            sb.Append("<tr><td style='padding:10px;border:1px solid #e9ebed;background:#f2f3f3;font-weight:bold'>Estado:</td>");
+            sb.Append($"<td style='padding:10px;border:1px solid #e9ebed;font-weight:bold;color:{color}'>{estadoStr}</td></tr>");
+            sb.Append("</table>");
+            
+            var urlDirecta = $"{_frontendSettings.BaseUrl}/index.html?incidente={ticketSafe}";
+            sb.Append("<div style='text-align: center; margin-top: 25px;'>");
+            sb.AppendFormat("<a href='{0}' style='background-color: #0f1b2a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Revisar Incidente Ahora</a>", urlDirecta);
+            sb.Append("</div>");
+            sb.Append("</div>");
+            sb.Append("</div>");
+
+            return sb.ToString();
+        }
+
+        private object ConstruirPayloadTeamsEscalamiento(long idIncidente, string ticketId, string sistema, int gravedad, string clasificacion, string hitoNombre, string reglaDescripcion, DateTime fechaLimite, double minutosRestantes)
+        {
+            var emojiGravedad = PrioridadCalculator.EmojiGravedad(gravedad);
+            var nombreGravedad = PrioridadCalculator.NombreGravedad(gravedad);
+            var urlDirecta = $"{_frontendSettings.BaseUrl}/index.html?incidente={idIncidente}";
+            
+            var color = minutosRestantes <= 0 ? "Attention" : (minutosRestantes <= 60 ? "Warning" : "Accent");
+            var estadoStr = minutosRestantes <= 0 ? "VENCIDO" : $"Faltan {Math.Round(minutosRestantes)} minutos";
+            var tituloCard = minutosRestantes <= 0 ? "¡PLAZO VENCIDO!" : "Plazo por vencer";
+
+            var facts = new TeamsFact[]
+            {
+                new TeamsFact("Ticket:", ticketId),
+                new TeamsFact("Sistema:", sistema),
+                new TeamsFact("Gravedad:", $"{emojiGravedad} {nombreGravedad}"),
+                new TeamsFact("Clasificación:", clasificacion),
+                new TeamsFact("Hito:", hitoNombre),
+                new TeamsFact("Vence:", fechaLimite.ToString("dd-MM-yyyy HH:mm")),
+                new TeamsFact("Estado:", estadoStr)
+            };
+
+            return new
+            {
+                type = "message",
+                attachments = new object[]
+                {
+                    new
+                    {
+                        contentType = "application/vnd.microsoft.card.adaptive",
+                        contentUrl = (string?)null,
+                        content = new
+                        {
+                            type = "AdaptiveCard",
+                            version = "1.4",
+                            body = new object[]
+                            {
+                                new
+                                {
+                                    type = "Container",
+                                    style = "emphasis",
+                                    items = new object[]
+                                    {
+                                        new { type = "TextBlock", text = $"⚠️ {tituloCard} - {hitoNombre}", weight = "Bolder", size = "Large", color = color },
+                                        new { type = "TextBlock", text = reglaDescripcion, isSubtle = true, size = "Small", spacing = "None", wrap = true },
+                                        new { type = "TextBlock", text = " ", spacing = "None" },
+                                        new { type = "FactSet", facts = facts }
+                                    }
+                                }
+                            },
+                            actions = new object[]
+                            {
+                                new
+                                {
+                                    type = "Action.OpenUrl",
+                                    title = "🔗 Revisar Incidente",
+                                    url = urlDirecta
+                                }
+                            }
+                        }
+                    }
+                }
+            };
         }
     }
 }

@@ -17,9 +17,7 @@ namespace Sitrac.Repository.Models
         public DateTime? FechaEnvio { get; set; }
         public string? MensajeError { get; set; }
 
-        // ▼▼▼ NUEVOS CAMPOS REQUERIDOS PARA LA AGRUPACIÓN VISUAL ▼▼▼
         public int CodTipoGravedad { get; set; }
         public string SistemaAfectado { get; set; } = string.Empty;
-        // ▲▲▲ FIN NUEVOS ▲▲▲
     }
 }

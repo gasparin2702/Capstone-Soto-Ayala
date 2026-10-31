@@ -5,7 +5,7 @@
 [![Estado](https://img.shields.io/badge/estado-Fase%202%20en%20desarrollo-yellow)](#información-adicional)
 [![Metodología](https://img.shields.io/badge/metodolog%C3%ADa-Scrum-blue)](#5-metodología-de-trabajo)
 [![Normativa](https://img.shields.io/badge/normativa-Ley%2021.663-orange)](#1-descripción-del-proyecto)
-[![.NET](https://img.shields.io/badge/.NET-8-512BD4)](#2-tecnologías-utilizadas)
+[![.NET](https://img.shields.io/badge/.NET-10-512BD4)](#2-tecnologías-utilizadas)
 
 🇪🇸 Español · [🇬🇧 English](README.en.md)
 
@@ -33,19 +33,19 @@ Hoy la detección y el aviso dependen de canales dispersos (SOC, firewalls, corr
 
 ## 2. Tecnologías utilizadas
 
-- **Lenguajes:** C# (.NET 8), T-SQL, HTML, CSS y JavaScript
-- **Frameworks y librerías:** ASP.NET Core (.NET 8), Dapper (acceso a datos) y Evolve (migraciones de base de datos)
+- **Lenguajes:** C# (.NET 10), T-SQL, HTML, CSS y JavaScript
+- **Frameworks y librerías:** ASP.NET Core (.NET 10), Dapper (acceso a datos), MailKit (correo SMTP) y Evolve (migraciones de base de datos)
 - **Base de datos:** SQL Server
 - **Cloud / Infraestructura:** despliegue en servidores propios de UltraPort, **sin exposición a internet**. Integraciones con INVGATE (webhook), SMTP y Microsoft Teams
 - **Herramientas de gestión:** GitHub (control de versiones) y Trello (tablero Scrum)
 
 > **Cambio respecto a la Fase 1:** el stack preliminar incluía Node.js y Angular. Al conocer las especificaciones de UltraPort, se ajustó a su Catálogo de Tecnologías Autorizadas.
 >
-> ⚠️ **Nota sobre .NET 8:** su uso es un estándar obligatorio definido por UltraPort. El equipo advirtió a UltraPort, en reunión presencial el 16 de septiembre de 2026, que .NET 8 llega a fin de soporte el 10 de noviembre de 2026; UltraPort se hará cargo de la situación.
+> **Nota sobre la versión de .NET:** el estándar inicial definido por UltraPort fue .NET 8. El equipo advirtió a UltraPort, en reunión presencial el 16 de septiembre de 2026, que .NET 8 llega a fin de soporte el 10 de noviembre de 2026, y el proyecto fue migrado a **.NET 10 (LTS)**.
 
 ## 3. Instrucciones para ejecutar el proyecto localmente
 
-**Requisitos:** SDK de .NET 8 (versión fijada en `global.json`) y SQL Server (Express es suficiente).
+**Requisitos:** SDK de .NET 10 (versión fijada en `global.json`) y SQL Server (Express es suficiente).
 
 ```bash
 # 1. Clonar el repositorio
@@ -54,7 +54,7 @@ cd "Capstone-Soto-Ayala/Fase 2/Evidencias Proyecto/Evidencias de sistema"
 
 # 2. Configurar la conexión y los canales de notificación
 #    Editar Sitrac.Server/appsettings.Development.json
-#    (cadena de conexión a SQL Server y configuración de SMTP y Teams)
+#    (cadena de conexión a SQL Server, SMTP, Teams y URL base del frontend)
 
 # 3. Crear el esquema y poblar los catálogos
 #    Ejecutar los scripts de Sitrac.DbMigration (V0001 a V0006) con Evolve
@@ -77,7 +77,7 @@ dotnet run --project Sitrac.Server
 
 Ambos participan en la arquitectura, las pruebas, las retrospectivas y las presentaciones, sin jerarquía entre ellos.
 
-- **Empresa mandante:** UltraPort (contrapartes: Enzo Vadillo y Gonzalo Crosier)
+- **Empresa mandante:** UltraPort (contrapartes: Enzo Badillo y Gonzalo Crosier)
 - **Docente guía:** María Ignacia Cobo
 
 ## 5. Metodología de trabajo
@@ -99,28 +99,49 @@ La evidencia de la gestión Scrum está en [`Fase 2/Evidencias Proyecto/Evidenci
 
 ## 6. Arquitectura de la solución
 
-Backend por capas en .NET 8, con base de datos SQL Server versionada mediante migraciones:
+Backend por capas en .NET 10, con base de datos SQL Server versionada mediante migraciones:
 
 ```mermaid
 flowchart LR
     A[INVGATE<br/>webhook] --> B[Sitrac.Server<br/>API / Controllers]
+    H[Sitrac.Frontend<br/>HTML/CSS/JS] --> B
     B --> C[Sitrac.Service<br/>reglas de negocio, SLA, notificaciones]
+    BG[Servicios en segundo plano<br/>ciclo de vida, escalamiento, Outbox] --> C
     C --> D[Sitrac.Repository<br/>Dapper]
     D --> E[Sitrac.DataAccess<br/>conexión]
-    E --> F[(SQL Server<br/>Proyecto_SITRAC)]
+    E --> F[(SQL Server)]
     G[Sitrac.DbMigration<br/>Evolve] -->|esquema y catálogos| F
-    H[Sitrac.Frontend<br/>HTML/CSS/JS] --> B
-    C -->|aviso dentro del plazo legal| I[Responsables de UltraPort]
+    C -->|aviso dentro del plazo legal| I[Responsables de UltraPort<br/>correo SMTP y Microsoft Teams]
 ```
 
 | Proyecto | Responsabilidad |
 | --- | --- |
-| `Sitrac.Server` | API y recepción de incidentes (controllers) |
-| `Sitrac.Service` | Reglas de negocio, cálculo de prioridad, avance del ciclo de vida del incidente y notificaciones |
+| `Sitrac.Server` | API REST y recepción de incidentes (controllers) |
+| `Sitrac.Service` | Reglas de negocio, cálculo de prioridad, avance del ciclo de vida, notificaciones (correo y Teams) y servicios en segundo plano |
 | `Sitrac.Repository` | Modelos y repositorios (incidentes, hitos, SLA, reglas de escalamiento y log de notificaciones) |
 | `Sitrac.DataAccess` | Fábrica de conexiones a la base de datos |
 | `Sitrac.DbMigration` | Scripts de migración versionados |
 | `Sitrac.Frontend` | Interfaz web (HTML, CSS y JS nativo) |
+
+**Servicios en segundo plano:**
+
+| Servicio | Frecuencia | Función |
+| --- | --- | --- |
+| `LifecycleAdvancerService` | 1 minuto | Avanza el estado del incidente y crea y cierra hitos de forma transaccional |
+| `SlaEscalationService` | 1 minuto | Envía alertas preventivas según las reglas de escalamiento antes del vencimiento de un hito |
+| `NotificationDispatcherService` | 15 segundos | Consume la cola Outbox y envía resúmenes consolidados por severidad |
+
+**Notificaciones:** los incidentes de prioridad alta se avisan de inmediato por correo y Microsoft Teams; el resto pasa por una cola Outbox y se consolida. Los avisos incluyen un enlace directo a la plataforma.
+
+**Endpoints principales:**
+
+| Método | Endpoint | Descripción |
+| --- | --- | --- |
+| `POST` | `/api/incidentes/invgate/webhook` | Recibe incidentes desde INVGATE |
+| `GET` | `/api/incidentes`, `/api/incidentes/{id}`, `/api/incidentes/{id}/historial` | Lista, detalle e historial |
+| `POST` | `/api/incidentes/{id}/confirmar-aviso` | Confirma el aviso temprano y crea el hito del informe preliminar |
+| `POST` | `/api/incidentes/{id}/informe` | Registra el informe preliminar o final |
+| `POST` | `/api/incidentes/{id}/cerrar` | Cierra el incidente |
 
 **Flujos de negocio** (aceptados por UltraPort):
 
@@ -130,7 +151,15 @@ flowchart LR
 
 **Puntos de entrada de incidentes:** ticket de INVGATE, correo entrante de la ANCI, registro vía Microsoft Teams, correo del equipo de ciberseguridad y registro manual en SITRAC (obligatorios: correo y Teams).
 
-El detalle técnico está en [`ARCHITECTURE_REFERENCE.md`](ARCHITECTURE_REFERENCE.md).
+El detalle técnico está en [`ARCHITECTURE.md`](<Fase 2/Evidencias Proyecto/Evidencias de sistema/ARCHITECTURE.md>).
+
+### Documentación técnica
+
+| Documento | Contenido |
+| --- | --- |
+| [`ARCHITECTURE.md`](<Fase 2/Evidencias Proyecto/Evidencias de sistema/ARCHITECTURE.md>) | Capas, componentes, flujos, modelo de datos y configuración |
+| [`Diagramas-UML.md`](<Fase 2/Evidencias Proyecto/Evidencias de documentacion/Diagramas-UML.md>) | Diagramas UML de casos de uso, clases, secuencia y componentes |
+| [`Requisitos-No-Funcionales.md`](<Fase 2/Evidencias Proyecto/Evidencias de documentacion/Requisitos-No-Funcionales.md>) | Requisitos de rendimiento, seguridad, disponibilidad y usabilidad con valores medibles |
 
 ---
 
@@ -158,17 +187,21 @@ El detalle técnico está en [`ARCHITECTURE_REFERENCE.md`](ARCHITECTURE_REFERENC
 | --- | --- |
 | Modelo de datos normalizado y diccionario de datos | ✅ |
 | Migraciones Evolve `V0001` a `V0006` | ✅ |
-| Backend por capas (.NET 8) y recepción por webhook | 🚧 |
-| Cálculo de prioridad y plazos SLA | 🚧 |
+| Backend por capas (.NET 10) y recepción por webhook | ✅ |
+| Cálculo de prioridad y plazos SLA | ✅ |
 | Frontend (registro y seguimiento) | 🚧 |
-| Envío de notificaciones (SMTP / Teams) | ⏳ |
+| Envío de notificaciones (SMTP / Teams), escalamiento y cola Outbox | ✅ |
 | Integración completa con INVGATE (a la espera de credenciales de UltraPort) | ⏳ |
+| Autenticación y autorización de endpoints | ⏳ |
+| Falso positivo, revisión de datos personales y registro por correo, Teams o manual | ⏳ |
 
 ### Alcances y limitaciones
 
 - MVP acotado a un flujo específico de trazabilidad y notificación, dentro de las 18 semanas de CAPSTONE.
 - El mandante advirtió que el alcance completo probablemente requiera más de una iteración; se mitiga acotando el MVP.
 - Las credenciales y la API de INVGATE aún no han sido entregadas, por lo que hoy los incidentes ingresan solo por webhook.
+- Los endpoints aún no tienen autenticación ni autorización; está previsto con Microsoft Entra ID o JWT.
+- Las tablas para falso positivo, revisión de datos personales y comunicaciones con la ANCI existen, pero aún no tienen endpoints.
 - La jornada actual es de 2 horas diarias; la migración a jornada de oficina (9:00–17:00) aún no está formalizada.
 
 ### Estructura del repositorio
@@ -182,7 +215,7 @@ El detalle técnico está en [`ARCHITECTURE_REFERENCE.md`](ARCHITECTURE_REFERENC
 │   ├── Evidencias Grupales/
 │   ├── Evidencias Individuales/
 │   └── Evidencias Proyecto/
-│       ├── Evidencias de documentacion/  # Diccionario de datos, flujos, gestión Scrum, modelo normalizado
+│       ├── Evidencias de documentacion/  # Diccionario de datos, flujos, UML, requisitos no funcionales, gestión Scrum, modelo normalizado
 │       └── Evidencias de sistema/        # Solución .NET (Sitrac.sln)
 │           ├── Sitrac.DataAccess/
 │           ├── Sitrac.DbMigration/       # Scripts V0001–V0006
@@ -190,7 +223,7 @@ El detalle técnico está en [`ARCHITECTURE_REFERENCE.md`](ARCHITECTURE_REFERENC
 │           ├── Sitrac.Repository/
 │           ├── Sitrac.Server/
 │           ├── Sitrac.Service/
-│           └── ARCHITECTURE_REFERENCE.md
+│           └── ARCHITECTURE.md
 ├── Fase 3/                               # Pendiente
 ├── README.md                             # Versión en español
 └── README.en.md                          # English version

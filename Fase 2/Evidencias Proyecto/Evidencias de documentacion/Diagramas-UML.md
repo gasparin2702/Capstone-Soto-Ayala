@@ -1,19 +1,10 @@
-# Diagramas UML — SITRAC-ANCI
+# Diagramas UML — SITRAC
 
-**Proyecto CAPSTONE 2026 (PTY4614) · DuocUC sede Valparaíso · Empresa mandante: UltraPort**
-**Versión:** 1.1 (borrador) · **Fecha:** 30-10-2026 · **Autores:** Rodrigo Ayala López, Benjamín Soto Aguilar
+**Proyecto CAPSTONE 2026 PTY4614 · DuocUC sede Valparaíso · Empresa mandante: UltraPort**
+**Autores:** Rodrigo Ayala López, Benjamín Soto Aguilar
 
-## 1. Propósito
 
-Este documento reúne los cuatro diagramas UML del sistema: casos de uso, clases, secuencia y componentes. Se construyó a partir de los scripts de migración `V0001` a `V0006` y de `ARCHITECTURE.md`, y complementa el [`README.md`](../../../README.md), los flujos de negocio aceptados por UltraPort y la ERS v1.1 (RF-01 a RF-16).
-
-Los diagramas están en **Mermaid**, por lo que GitHub los muestra directamente. Se versionan como código junto al proyecto.
-
-> **Nota sobre los casos de uso:** Mermaid no tiene un tipo nativo de casos de uso. Se representa con un diagrama de flujo con notación UML: actores fuera del sistema, casos de uso como óvalos dentro del límite del sistema y relaciones `include` / `extend` rotuladas.
-
----
-
-## 2. Diagrama de casos de uso
+##Diagrama de casos de uso
 
 ```mermaid
 flowchart LR
@@ -201,7 +192,7 @@ Notas de lectura:
 - `EventoHistorial` también referencia estados de incidente, estados de revisión de datos personales y gravedades anteriores y nuevas.
 - `NotificacionLog` guarda el destinatario como texto y no se relaciona con `Responsable`.
 
-### 3.2 Comunicaciones, informes y revisión de datos personales
+### Comunicaciones, informes y revisión de datos personales
 
 ```mermaid
 classDiagram
@@ -307,9 +298,9 @@ classDiagram
 
 ---
 
-## 4. Diagramas de secuencia
+## Diagramas de secuencia
 
-### 4.1 Registro de un incidente desde INVGATE
+### Registro de un incidente desde INVGATE
 
 ```mermaid
 sequenceDiagram
@@ -345,7 +336,7 @@ sequenceDiagram
     CTL-->>INV: Respuesta HTTP
 ```
 
-### 4.2 Servicios en segundo plano: ciclo de vida, escalamiento y Outbox
+### Servicios en segundo plano: ciclo de vida, escalamiento y Outbox
 
 ```mermaid
 sequenceDiagram
@@ -384,7 +375,7 @@ sequenceDiagram
     end
 ```
 
-### 4.3 Confirmación del aviso temprano por un responsable
+###  Confirmación del aviso temprano por un responsable
 
 ```mermaid
 sequenceDiagram
@@ -413,7 +404,7 @@ sequenceDiagram
 
 ---
 
-## 5. Diagrama de componentes
+##Diagrama de componentes
 
 ```mermaid
 flowchart LR
@@ -471,7 +462,7 @@ flowchart LR
 
 ---
 
-## 6. Trazabilidad entre diagramas y requisitos
+## Trazabilidad entre diagramas y requisitos
 
 | Diagrama | Requisitos que cubre |
 | --- | --- |
@@ -483,8 +474,3 @@ flowchart LR
 | Secuencia 4.3 | RF-03, RF-05 |
 | Componentes | RNF-04, RNF-07, restricción de despliegue sin exposición a internet |
 
-## 7. Decisiones y observaciones
-
-1. **Versión de .NET:** el proyecto fue migrado de .NET 8 a .NET 10 (LTS). El README y `ARCHITECTURE.md` indican .NET 10.
-2. **Fechas en las migraciones:** `V0001` a `V0005` usan `GETDATE()` y `V0006` usa `GETUTCDATE()`. Se mantienen así por ahora.
-3. **Tablas reservadas para desarrollo futuro:** `TbSitracNotificacion` y `TbSitracTipoNotificacion` (V0002) no se usan actualmente; la cola de salida es `TbSitracNotificacionLog`.

@@ -1,16 +1,52 @@
 // js/api.js
 const API_BASE_URL = 'http://localhost:5116/api';
-const H = 3600e3;
-const D = 24 * H;
+
+/**
+ * Helper para obtener los headers de autenticación.
+ */
+const getAuthHeaders = (extraHeaders = {}) => {
+    const token = localStorage.getItem('sitrac_token');
+    return {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...extraHeaders
+    };
+};
+
+/**
+ * Wrapper de Fetch que maneja la autenticación y los errores 401.
+ */
+const authFetch = async (url, options = {}) => {
+    options.headers = getAuthHeaders(options.headers);
+    
+    const response = await fetch(url, options);
+
+    // Si el token expiró o es inválido, forzar logout
+    if (response.status === 401) {
+        localStorage.removeItem('sitrac_token');
+        localStorage.removeItem('sitrac_user');
+        window.location.href = 'login.html';
+        throw new Error('Sesión expirada. Inicie sesión nuevamente.');
+    }
+
+    return response;
+};
 
 export const SitracAPI = {
-    /**
-     * Trae la cola de incidentes activos (estado < 4).
-     * Normaliza cada DTO para que app.js no tenga que saber del backend.
-     */
+    // --- AUTENTICACIÓN ---
+    login: async (username, password) => {
+        const res = await fetch(`${API_BASE_URL}/Auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        if (!res.ok) throw new Error('Credenciales inválidas');
+        return await res.json();
+    },
+
+    // --- INCIDENTES ---
     obtenerIncidentesActivos: async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/incidentes`);
+            const response = await authFetch(`${API_BASE_URL}/incidentes`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
             if (!Array.isArray(data)) return [];
@@ -18,39 +54,35 @@ export const SitracAPI = {
             return data.map(item => {
                 const toma = new Date(item.fechaTomaConocimiento).getTime();
 
-                // Construir los 3 hitos con sus ventanas reales
                 const hitos = [];
                 if (item.fechaLimiteAvisoTemprano) {
-                    hitos.push({ ms: 'A', limit: new Date(item.fechaLimiteAvisoTemprano).getTime(), win: 3 * H });
+                    hitos.push({ ms: 'A', limit: new Date(item.fechaLimiteAvisoTemprano).getTime(), win: 3 * 3600000 });
                 }
                 if (item.fechaLimiteInformePreliminar) {
                     hitos.push({
                         ms: 'P',
                         limit: new Date(item.fechaLimiteInformePreliminar).getTime(),
-                        win: item.clasificacion === 'OIV' ? 24 * H : 72 * H
+                        win: item.clasificacion === 'OIV' ? 24 * 3600000 : 72 * 3600000
                     });
                 }
                 if (item.fechaLimiteInformeFinal) {
-                    hitos.push({ ms: 'F', limit: new Date(item.fechaLimiteInformeFinal).getTime(), win: 15 * D });
+                    hitos.push({ ms: 'F', limit: new Date(item.fechaLimiteInformeFinal).getTime(), win: 15 * 24 * 3600000 });
                 }
 
-                // Elegir el hito "activo" según el estado del incidente
                 const codEstado = Number(item.codTipoEstadoIncidente);
                 let hitoActual;
                 if (codEstado === 1) hitoActual = hitos.find(h => h.ms === 'A');
                 else if (codEstado === 2) hitoActual = hitos.find(h => h.ms === 'P');
                 else if (codEstado === 3) hitoActual = hitos.find(h => h.ms === 'F');
 
-                // Fallback: primer hito con deadline futuro
                 if (!hitoActual) {
                     const now = Date.now();
                     hitoActual = hitos.find(h => h.limit > now) || hitos[hitos.length - 1];
                 }
                 if (!hitoActual) {
-                    hitoActual = { ms: 'A', limit: toma + 3 * H, win: 3 * H };
+                    hitoActual = { ms: 'A', limit: toma + 3 * 3600000, win: 3 * 3600000 };
                 }
 
-                // Estado legible para la UI
                 let estadoUI = item.estado;
                 if (estadoUI === 'En triage') estadoUI = 'Detectado';
                 else if (estadoUI === 'Aviso enviado') estadoUI = 'Aviso Temprano';
@@ -67,9 +99,8 @@ export const SitracAPI = {
                     ms: hitoActual.ms,
                     win: hitoActual.win,
                     limit: hitoActual.limit,
-                    // ⬅ NUEVO: campos que el motor de prioridad necesita
-                    toma,                                    // timestamp de la toma de conocimiento
-                    estadoOriginal: item.estado,             // texto crudo del backend
+                    toma,
+                    estadoOriginal: item.estado,
                     live: true
                 };
             });
@@ -79,12 +110,9 @@ export const SitracAPI = {
         }
     },
 
-    /**
-     * Detalle completo de un incidente.
-     */
     obtenerDetalleIncidente: async (idIncidente) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}`);
+            const response = await authFetch(`${API_BASE_URL}/incidentes/${idIncidente}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return await response.json();
         } catch (error) {
@@ -93,12 +121,9 @@ export const SitracAPI = {
         }
     },
 
-    /**
-     * Historial de eventos (timeline).
-     */
     obtenerHistorialIncidente: async (idIncidente) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}/historial`);
+            const response = await authFetch(`${API_BASE_URL}/incidentes/${idIncidente}/historial`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
             return Array.isArray(data) ? data : [];
@@ -108,10 +133,9 @@ export const SitracAPI = {
         }
     },
 
-    // --- NUEVOS MÉTODOS POST (BLOQUE B) ---
-    
+    // --- ACCIONES ---
     confirmarAviso: async (idIncidente, payload) => {
-        const res = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}/confirmar-aviso`, {
+        const res = await authFetch(`${API_BASE_URL}/incidentes/${idIncidente}/confirmar-aviso`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -124,7 +148,7 @@ export const SitracAPI = {
     },
 
     registrarInforme: async (idIncidente, payload) => {
-        const res = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}/informe`, {
+        const res = await authFetch(`${API_BASE_URL}/incidentes/${idIncidente}/informe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -137,7 +161,7 @@ export const SitracAPI = {
     },
 
     cerrarIncidente: async (idIncidente, payload) => {
-        const res = await fetch(`${API_BASE_URL}/incidentes/${idIncidente}/cerrar`, {
+        const res = await authFetch(`${API_BASE_URL}/incidentes/${idIncidente}/cerrar`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

@@ -1,6 +1,13 @@
 // js/app.js
 import { SitracAPI } from './api.js';
+const token = localStorage.getItem('sitrac_token');
+const userStr = localStorage.getItem('sitrac_user');
 
+if (!token || !userStr) {
+    window.location.href = 'login.html';
+}
+
+const currentUser = JSON.parse(userStr || '{}');
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const H = 3600e3, MIN = 60e3, D = 24 * H;
@@ -512,10 +519,10 @@ function renderKv() {
   const kvRows = [
     ['Clasificación empresa', inc.cls],
     ['Canal de entrada', 'INVGATE (webhook)'],
-    ['Analista asignado', 'C. Fuentes'],
+    ['Analista asignado', currentUser.nombre || 'C. Fuentes'],
     ['Recordatorios', inc.notifDetenidas ? '<span class="chip ok">Detenidos</span>' : '<span class="chip warn">Activos · cada 60 min</span>'],
     ['Revisión de datos personales', inc.dp]
-  ];
+];
   $('#kv').innerHTML = kvRows.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
 }
 
@@ -823,9 +830,21 @@ function renderAll() {
   renderSimilar();
   greet();
 }
-
-/* ---------- init ---------- */
 (async function init() {
+  const meEl = document.querySelector('.me span:not(.avatar)');
+  if (meEl && typeof currentUser !== 'undefined' && currentUser.nombre) {
+      meEl.textContent = currentUser.nombre;
+  }
+  
+  const btnLogout = document.getElementById('btnLogout');
+  if (btnLogout) {
+      btnLogout.addEventListener('click', () => {
+          localStorage.removeItem('sitrac_token');
+          localStorage.removeItem('sitrac_user');
+          window.location.href = 'login.html';
+      });
+  }
+
   await loadCola();
 
   setInterval(() => {

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sitrac.Service.Dtos;
 using Sitrac.Service.Interfaces;
@@ -7,28 +8,40 @@ using System.Threading.Tasks;
 
 namespace Sitrac.Server.Controllers
 {
+    [Authorize] // Protege todos los endpoints por defecto
     [ApiController]
     [Route("api/[controller]")]
     public class IncidentesController : ControllerBase
     {
         private readonly IIncidenteService _incidenteService;
+        private readonly IConfiguration _configuration;
 
-        public IncidentesController(IIncidenteService incidenteService)
+        public IncidentesController(IIncidenteService incidenteService, IConfiguration configuration)
         {
             _incidenteService = incidenteService;
+            _configuration = configuration;
         }
 
+        [AllowAnonymous] // Webhook público, pero validado con API Key
         [HttpPost("invgate/webhook")]
         public async Task<IActionResult> RecepcionarTicketInvgate([FromBody] CrearIncidenteRequest request)
         {
+            // Validación de API Key (Seguridad)
+            var apiKeyEsperada = _configuration["WebhookApiKey"] ?? "SITRAC_INVGATE_SECRET_2026";
+            if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey) || apiKey != apiKeyEsperada)
+            {
+                return Unauthorized(new { Error = "API Key inválida o ausente." });
+            }
+
             try
             {
                 var idGenerado = await _incidenteService.RegistrarIncidenteInvgateAsync(request);
                 return Created($"/api/incidentes/{idGenerado}", new { Mensaje = "Incidente registrado exitosamente", Id = idGenerado });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Error = "Error interno del servidor", Detalle = ex.Message });
+                // Hardening: No exponer ex.Message
+                return StatusCode(500, new { Error = "Error interno al procesar el ticket." });
             }
         }
 
@@ -40,11 +53,13 @@ namespace Sitrac.Server.Controllers
                 var incidentes = await _incidenteService.ObtenerIncidentesActivosAsync();
                 return Ok(incidentes);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Error = "Error al obtener la cola de incidentes", Detalle = ex.Message });
+                return StatusCode(500, new { Error = "Error al obtener la cola de incidentes." });
             }
         }
+
+        // ... (Aplica el mismo patrón a los demás endpoints: eliminar ex.Message del catch y retornar mensaje genérico)
 
         [HttpGet("{id}")]
         public async Task<IActionResult> ObtenerDetalleIncidente(long id)
@@ -55,9 +70,9 @@ namespace Sitrac.Server.Controllers
                 if (detalle == null) return NotFound(new { Error = $"No se encontró el incidente con ID {id}" });
                 return Ok(detalle);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Error = "Error al obtener el detalle del incidente", Detalle = ex.Message });
+                return StatusCode(500, new { Error = "Error al obtener el detalle del incidente." });
             }
         }
 
@@ -69,15 +84,11 @@ namespace Sitrac.Server.Controllers
                 var historial = await _incidenteService.ObtenerHistorialIncidenteAsync(id);
                 return Ok(historial);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Error = "Error al obtener el historial del incidente", Detalle = ex.Message });
+                return StatusCode(500, new { Error = "Error al obtener el historial del incidente." });
             }
         }
-
-        // ============================================================
-        // NUEVOS ENDPOINTS (BLOQUE B) - CIERRE DE CICLO FUNCIONAL
-        // ============================================================
 
         [HttpPost("{id}/confirmar-aviso")]
         public async Task<IActionResult> ConfirmarAviso(long id, [FromBody] ConfirmarAvisoRequest request)
@@ -86,11 +97,11 @@ namespace Sitrac.Server.Controllers
             try
             {
                 await _incidenteService.ConfirmarAvisoAsync(id, request);
-                return Ok(new { Mensaje = "Aviso confirmado. Hito Preliminar creado.", IdIncidente = id });
+                return Ok(new { Mensaje = "Aviso confirmado.", IdIncidente = id });
             }
             catch (KeyNotFoundException ex) { return NotFound(new { Error = ex.Message }); }
             catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
-            catch (Exception ex) { return StatusCode(500, new { Error = "Error interno", Detalle = ex.Message }); }
+            catch (Exception) { return StatusCode(500, new { Error = "Error interno." }); }
         }
 
         [HttpPost("{id}/informe")]
@@ -100,11 +111,11 @@ namespace Sitrac.Server.Controllers
             try
             {
                 await _incidenteService.RegistrarInformeAsync(id, request);
-                return Ok(new { Mensaje = $"Informe {(request.Tipo == "P" ? "Preliminar" : "Final")} registrado.", IdIncidente = id });
+                return Ok(new { Mensaje = "Informe registrado.", IdIncidente = id });
             }
             catch (KeyNotFoundException ex) { return NotFound(new { Error = ex.Message }); }
             catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
-            catch (Exception ex) { return StatusCode(500, new { Error = "Error interno", Detalle = ex.Message }); }
+            catch (Exception) { return StatusCode(500, new { Error = "Error interno." }); }
         }
 
         [HttpPost("{id}/cerrar")]
@@ -118,7 +129,7 @@ namespace Sitrac.Server.Controllers
             }
             catch (KeyNotFoundException ex) { return NotFound(new { Error = ex.Message }); }
             catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
-            catch (Exception ex) { return StatusCode(500, new { Error = "Error interno", Detalle = ex.Message }); }
+            catch (Exception) { return StatusCode(500, new { Error = "Error interno." }); }
         }
     }
 }

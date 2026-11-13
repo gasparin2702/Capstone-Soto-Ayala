@@ -6,7 +6,6 @@
 **/.gitignore
 **/*.user
 **/*.suo
-**/tree.txt
 **/bundle.txt
 **/tree.ps1
 Sitrac.Frontend/

@@ -9,7 +9,7 @@ services:
     container_name: sitrac_sqlserver
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD="Sitrac2026!Strong"
+      - 'MSSQL_SA_PASSWORD=Sitrac2026!Strong'
       - MSSQL_PID=Developer
     ports:
       - "1433:1433"
@@ -54,7 +54,7 @@ services:
       - ASPNETCORE_URLS=http://+:8080
 
       # Base de datos
-      - ConnectionStrings__SitracConnection="Server=sqlserver;Database=DbSitrac;User Id=sa;Password=Sitrac2026!Strong;TrustServerCertificate=True;"
+      - 'ConnectionStrings__SitracConnection=Server=sqlserver;Database=DbSitrac;User Id=sa;Password=Sitrac2026!Strong;TrustServerCertificate=True;'
 
       # JWT
       - JwtSettings__SecretKey=SITRAC_DOCKER_SECRET_KEY_2026_CHANGE_ME

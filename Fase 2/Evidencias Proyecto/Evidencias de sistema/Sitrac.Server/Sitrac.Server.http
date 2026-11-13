@@ -1,6 +1,0 @@
-@Sitrac.Server_HostAddress = http://localhost:5116
-
-GET {{Sitrac.Server_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

@@ -1,4 +1,4 @@
-# Manual técnico — SITRAC-ANCI
+# Manual técnico — SITRAC
 
 **Guía de instalación, configuración y despliegue**
 
@@ -9,7 +9,7 @@ Versión 1.0 · Estado del sistema: MVP, Fase 2 en desarrollo
 
 ## 1. Propósito y alcance
 
-Este manual explica cómo instalar, configurar, desplegar y verificar SITRAC-ANCI. Está dirigido a quien deba levantar el sistema (equipo de desarrollo y, en una eventual migración, el equipo de sistemas de UltraPort). Para entender el diseño, ver `ARCHITECTURE.md`; para el modelo de datos, `Diccionario_de_Datos_SITRAC.xlsx`.
+Este manual explica cómo instalar, configurar, desplegar y verificar SITRAC. Está dirigido a quien deba levantar el sistema (equipo de desarrollo y, en una eventual migración, el equipo de sistemas de UltraPort). Para entender el diseño, ver `ARCHITECTURE.md`; para el modelo de datos, `Diccionario_de_Datos_SITRAC.xlsx`.
 
 ## 2. Resumen técnico
 
@@ -151,7 +151,7 @@ El MVP funciona en ambiente de desarrollo. Antes de un uso real se debe resolver
 - **Actualizar el esquema:** agregar un nuevo script versionado en `Sitrac.MigracionBd/Scripts/`; se aplica en el siguiente arranque de la API.
 - **Reiniciar servicios:** `docker compose restart` (o `docker compose down` / `up --build` para reconstruir).
 - **Revisar notificaciones:** la cola Outbox está en la tabla `TbSitracNotificacionLog`.
-- **Pruebas:** ver `Plan_de_Pruebas_Fase_3_SITRAC-ANCI.docx`.
+- **Pruebas:** ver `Plan_de_Pruebas_Fase_3_SITRAC.docx`.
 
 ## 9. Solución de problemas
 

@@ -7,6 +7,8 @@ namespace Sitrac.Servicio
 {
     public class SeguridadServicio : ISeguridadServicio
     {
+        private const string RolAdministrador = "Administrador SITRAC";
+
         private readonly ISeguridadRepositorio _seguridadRepositorio;
 
         public SeguridadServicio(ISeguridadRepositorio seguridadRepositorio)
@@ -27,6 +29,16 @@ namespace Sitrac.Servicio
         public Task<IEnumerable<string>> ObtenerRolesAsync(long idUsuario)
         {
             return _seguridadRepositorio.ObtenerRolesPorUsuarioAsync(idUsuario);
+        }
+
+        public Task<bool> ExisteAdministradorInicialAsync()
+        {
+            return _seguridadRepositorio.ExisteUsuarioConRolAsync(RolAdministrador);
+        }
+
+        public Task AsignarAdministradorAsync(long idUsuario)
+        {
+            return _seguridadRepositorio.AsignarRolAUsuarioAsync(idUsuario, RolAdministrador);
         }
     }
 }

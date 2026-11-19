@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sitrac.Servicio.Dtos;
 using Sitrac.Servicio.Interfaces;
+using Sitrac.Servicio.Seguridad;
 using System.Threading.Tasks;
 
 namespace Sitrac.Servidor.Controllers
@@ -10,12 +12,15 @@ namespace Sitrac.Servidor.Controllers
     public class AutenticacionControlador : ControllerBase
     {
         private readonly IAutenticacionServicio _authService;
+        private readonly ISeguridadServicio _seguridadServicio;
 
-        public AutenticacionControlador(IAutenticacionServicio authService)
+        public AutenticacionControlador(IAutenticacionServicio authService, ISeguridadServicio seguridadServicio)
         {
             _authService = authService;
+            _seguridadServicio = seguridadServicio;
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginSolicitud request)
         {
@@ -27,13 +32,36 @@ namespace Sitrac.Servidor.Controllers
             return Ok(response);
         }
 
-        // Endpoint temporal para registrar el primer admin (Protegido en prod)
+        [Authorize(Policy = TransaccionesCatalogo.RegistrarUsuario)]
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterSolicitud request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            await _authService.RegistrarUsuarioAsync(request.Username, request.Password, request.NombreCompleto, "Admin");
+
+            var idUsuario = await _authService.RegistrarUsuarioAsync(request.Username, request.Password, request.NombreCompleto, "Admin");
+            if (idUsuario == null) return StatusCode(500, new { Error = "No se pudo registrar el usuario." });
+
             return Ok(new { Mensaje = "Usuario registrado exitosamente." });
+        }
+
+        /// <summary>
+        /// Crea el administrador inicial del sistema. Es de un solo uso: si ya existe un usuario
+        /// asignado al rol Administrador SITRAC, responde 409 Conflict.
+        /// </summary>
+        [AllowAnonymous]
+        [HttpPost("bootstrap")]
+        public async Task<IActionResult> Bootstrap([FromBody] RegisterSolicitud request)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            if (await _seguridadServicio.ExisteAdministradorInicialAsync())
+                return Conflict(new { Mensaje = "Bootstrap ya fue ejecutado. El administrador inicial ya existe." });
+
+            var idUsuario = await _authService.RegistrarUsuarioAsync(request.Username, request.Password, request.NombreCompleto, "Admin");
+            if (idUsuario == null) return StatusCode(500, new { Error = "No se pudo crear el administrador inicial." });
+
+            await _seguridadServicio.AsignarAdministradorAsync(idUsuario.Value);
+            return Ok(new { mensaje = "Administrador inicial creado." });
         }
     }
 

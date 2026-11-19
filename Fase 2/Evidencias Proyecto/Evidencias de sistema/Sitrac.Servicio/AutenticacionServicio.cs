@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Sitrac.Repositorio.Interfaces;
@@ -17,11 +20,19 @@ namespace Sitrac.Servicio
     public class AutenticacionServicio : IAutenticacionServicio
     {
         private readonly IUsuarioRepositorio _usuarioRepository;
+        private readonly ISeguridadServicio _seguridadServicio;
+        private readonly ILogger<AutenticacionServicio> _logger;
         private readonly ConfiguracionJwt _jwtSettings;
 
-        public AutenticacionServicio(IUsuarioRepositorio usuarioRepository, IOptions<ConfiguracionJwt> jwtSettings)
+        public AutenticacionServicio(
+            IUsuarioRepositorio usuarioRepository,
+            ISeguridadServicio seguridadServicio,
+            ILogger<AutenticacionServicio> logger,
+            IOptions<ConfiguracionJwt> jwtSettings)
         {
             _usuarioRepository = usuarioRepository;
+            _seguridadServicio = seguridadServicio;
+            _logger = logger;
             _jwtSettings = jwtSettings.Value;
         }
 
@@ -33,7 +44,11 @@ namespace Sitrac.Servicio
             if (!VerifyPassword(request.Password, user.PasswordHash))
                 return null;
 
-            var token = GenerateJwtToken(user);
+            var transacciones = (await _seguridadServicio.ObtenerTransaccionesAsync(user.IdUsuario)).ToArray();
+            if (transacciones.Length == 0)
+                _logger.LogWarning("Usuario {nombre} sin transacciones asignadas", user.NombreUsuario);
+
+            var token = GenerateJwtToken(user, transacciones);
             return new LoginRespuesta
             {
                 Token = token,
@@ -42,7 +57,7 @@ namespace Sitrac.Servicio
             };
         }
 
-        public async Task<bool> RegistrarUsuarioAsync(string username, string password, string nombreCompleto, string rol)
+        public async Task<long?> RegistrarUsuarioAsync(string username, string password, string nombreCompleto, string rol)
         {
             var hash = HashPassword(password);
             var user = new Usuario
@@ -52,23 +67,28 @@ namespace Sitrac.Servicio
                 NombreCompleto = nombreCompleto,
                 Rol = rol
             };
-            await _usuarioRepository.InsertarAsync(user);
-            return true;
+            return await _usuarioRepository.InsertarAsync(user);
         }
 
-        private string GenerateJwtToken(Usuario user)
+        private string GenerateJwtToken(Usuario user, IEnumerable<string> transacciones)
         {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.IdUsuario.ToString()),
+                new Claim(ClaimTypes.Name, user.NombreUsuario),
+                new Claim(ClaimTypes.Role, user.Rol),
+                new Claim("NombreCompleto", user.NombreCompleto),
+                new Claim("transacciones", string.Join(",", transacciones))
+            };
+
+            foreach (var codigo in transacciones)
+                claims.Add(new Claim("transaccion", codigo));
+
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_jwtSettings.SecretKey);
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.IdUsuario.ToString()),
-                    new Claim(ClaimTypes.Name, user.NombreUsuario),
-                    new Claim(ClaimTypes.Role, user.Rol),
-                    new Claim("NombreCompleto", user.NombreCompleto)
-                }),
+                Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddHours(_jwtSettings.ExpirationHours),
                 Issuer = _jwtSettings.Issuer,
                 Audience = _jwtSettings.Audience,
@@ -78,7 +98,6 @@ namespace Sitrac.Servicio
             return tokenHandler.WriteToken(token);
         }
 
-        // ACTUALIZADO: Uso de la API estática Pbkdf2 de .NET 10
         public static string HashPassword(string password)
         {
             byte[] salt = RandomNumberGenerator.GetBytes(16);

@@ -18,7 +18,6 @@ namespace Sitrac.Repositorio.Interfaces
 
         Task ConfirmarAvisoTransaccionalAsync(long idIncidente, long nuevoEstado, SitracEventoHistorial historial, Hito? hitoACerrar, Hito? hitoACrear, System.DateTime ahora);
         
-        // Nueva firma con Soporte DPO
         Task RegistrarInformeTransaccionalAsync(
             long idIncidente, long? nuevoEstado, SitracEventoHistorial historial, 
             Hito hitoACerrar, Hito? hitoACrear, System.DateTime ahora, 

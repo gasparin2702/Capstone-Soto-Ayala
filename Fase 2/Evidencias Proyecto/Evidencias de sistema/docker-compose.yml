@@ -87,7 +87,7 @@ services:
       - FrontendSettings__BaseUrl=http://127.0.0.1:5500/Sitrac.Frontend
 
     ports:
-      - "5116:8080"
+      - "5117:8080"
     depends_on:
       sqlserver:
         condition: service_healthy

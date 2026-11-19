@@ -18,7 +18,6 @@ namespace Sitrac.Servicio.Interfaces
             List<NotificacionLog> pendientes, 
             CancellationToken cancellationToken = default);
 
-        // NUEVO: Para enviar alertas de umbral de SLA (antes de que venza)
         Task<ResultadoEnvio> EnviarAlertaEscalamientoAsync(
             long idIncidente, string ticketId, string sistema, int gravedad, string clasificacion, 
             string hitoNombre, string reglaDescripcion, DateTime fechaLimite, double minutosRestantes, 

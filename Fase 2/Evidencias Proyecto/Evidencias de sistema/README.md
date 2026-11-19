@@ -75,7 +75,7 @@ Servicios expuestos:
 
 | Servicio | URL / puerto |
 | --- | --- |
-| API SITRAC | `http://localhost:5116` |
+| API SITRAC | `http://127.0.0.1:5117` |
 | SQL Server | `localhost:1433` (sa / `Sitrac2026!Strong`) |
 | smtp4dev (captura de correo) | `http://localhost:5000` |
 
@@ -99,7 +99,7 @@ dotnet build Sitrac.sln
 dotnet run --project Sitrac.Servidor/Sitrac.Servidor.csproj --launch-profile http
 ```
 
-- La API escucha por defecto en `http://localhost:5116` (perfil `http`).
+- La API escucha por defecto en `http://127.0.0.1:5117` (perfil `http`).
 - En entorno Development se habilita Swagger en `/swagger`.
 - Las migraciones se aplican al iniciar desde `../Sitrac.MigracionBd/Scripts` relativo al proyecto servidor.
 
@@ -113,7 +113,7 @@ npx serve Sitrac.Frontend -l 5500
 
 - Login: `http://localhost:5500/login.html`
 - Consola: `http://localhost:5500/index.html`
-- La URL base de la API está definida en `Sitrac.Frontend/js/api.js` y `Sitrac.Frontend/js/login.js` (`http://localhost:5116/api`).
+- La URL base de la API tiene una única fuente en `Sitrac.Frontend/js/api.js` (`http://127.0.0.1:5117/api`). `login.js` reutiliza `SitracAPI.login`. Puede sobreescribirse con `window.SITRAC_API_BASE_URL` antes de cargar los módulos.
 
 ## 5. Metodología de trabajo
 

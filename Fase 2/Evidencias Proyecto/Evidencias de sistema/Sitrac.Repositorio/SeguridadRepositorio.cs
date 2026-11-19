@@ -94,5 +94,40 @@ namespace Sitrac.Repositorio
 
             return total > 0;
         }
+
+        public async Task<bool> ExisteUsuarioConRolAsync(string nombreRol)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            const string sql = @"
+                SELECT CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM TbSitracUsuarioRol ur
+                    INNER JOIN TbSitracRol r ON r.IdRol = ur.IdRol
+                    WHERE r.NombreRol = @NombreRol
+                      AND ur.AuditNotDeleted = 1
+                      AND r.AuditNotDeleted = 1
+                ) THEN 1 ELSE 0 END";
+
+            return await connection.ExecuteScalarAsync<bool>(sql, new { NombreRol = nombreRol });
+        }
+
+        public async Task AsignarRolAUsuarioAsync(long idUsuario, string nombreRol)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            const string sql = @"
+                INSERT INTO TbSitracUsuarioRol (IdUsuario, IdRol)
+                SELECT @IdUsuario, r.IdRol
+                FROM TbSitracRol r
+                WHERE r.NombreRol = @NombreRol
+                  AND r.AuditNotDeleted = 1
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM TbSitracUsuarioRol ur
+                      WHERE ur.IdUsuario = @IdUsuario
+                        AND ur.IdRol = r.IdRol
+                  )";
+
+            await connection.ExecuteAsync(sql, new { IdUsuario = idUsuario, NombreRol = nombreRol });
+        }
     }
 }

@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Configuration;
 using Sitrac.AccesoDatos;
 using Sitrac.Repositorio;
 using Sitrac.Repositorio.Interfaces;
 using Sitrac.Servicio;
 using Sitrac.Servicio.Configuration;
 using Sitrac.Servicio.Interfaces;
+using Sitrac.Servicio.Seguridad;
 using EvolveDb;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -73,6 +75,24 @@ builder.Services.AddAuthentication(x =>
         ValidAudience = jwtSettings?.Audience,
         ValidateLifetime = true
     };
+});
+
+var habilitarAuthTx = builder.Configuration
+    .GetSection(ConfiguracionSeguridad.SectionName)
+    .GetValue<bool>(nameof(ConfiguracionSeguridad.HabilitarAutorizacionPorTransaccion));
+
+builder.Services.AddAuthorization(options =>
+{
+    foreach (var codigo in TransaccionesCatalogo.Todas)
+    {
+        options.AddPolicy(codigo, policy =>
+        {
+            if (habilitarAuthTx)
+                policy.RequireClaim("transaccion", codigo);
+            else
+                policy.RequireAuthenticatedUser(); // solo autenticado
+        });
+    }
 });
 
 // Rate Limiting (GLOBAL) - 100 peticiones por minuto por IP/Usuario

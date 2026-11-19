@@ -1,5 +1,5 @@
 // js/api.js
-const API_BASE_URL = 'http://localhost:5116/api';
+export const API_BASE_URL = (typeof window !== 'undefined' && window.SITRAC_API_BASE_URL) || 'http://127.0.0.1:5117/api';
 
 /**
  * Helper para obtener los headers de autenticación.
@@ -39,7 +39,12 @@ export const SitracAPI = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
-        if (!res.ok) throw new Error('Credenciales inválidas');
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.Error || err.error || `Error HTTP: ${res.status}. Verifique sus credenciales.`);
+        }
+
         return await res.json();
     },
 

@@ -10,7 +10,7 @@ namespace Sitrac.Repositorio.Models
         public string Clasificacion { get; set; } = string.Empty;
         public int Gravedad { get; set; }
         public string Estado { get; set; } = string.Empty;
-        public long CodTipoEstadoIncidente { get; set; }   // ← NUEVO
+        public long CodTipoEstadoIncidente { get; set; }
         public DateTime FechaTomaConocimiento { get; set; }
         public DateTime? FechaLimiteAvisoTemprano { get; set; }
         public DateTime? FechaLimiteInformePreliminar { get; set; }

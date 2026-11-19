@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sitrac.Servicio.Dtos;
 using Sitrac.Servicio.Interfaces;
+using Sitrac.Servicio.Seguridad;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -40,11 +41,11 @@ namespace Sitrac.Servidor.Controllers
             }
             catch (Exception)
             {
-                // Hardening: No exponer ex.Message
                 return StatusCode(500, new { Error = "Error interno al procesar el ticket." });
             }
         }
 
+        [Authorize(Policy = TransaccionesCatalogo.ConsultarIncidentes)]
         [HttpGet]
         public async Task<IActionResult> ObtenerIncidentesActivos()
         {
@@ -59,8 +60,7 @@ namespace Sitrac.Servidor.Controllers
             }
         }
 
-        // ... (Aplica el mismo patrón a los demás endpoints: eliminar ex.Message del catch y retornar mensaje genérico)
-
+        [Authorize(Policy = TransaccionesCatalogo.ConsultarIncidente)]
         [HttpGet("{id}")]
         public async Task<IActionResult> ObtenerDetalleIncidente(long id)
         {
@@ -76,6 +76,7 @@ namespace Sitrac.Servidor.Controllers
             }
         }
 
+        [Authorize(Policy = TransaccionesCatalogo.ConsultarHistorial)]
         [HttpGet("{id}/historial")]
         public async Task<IActionResult> ObtenerHistorialIncidente(long id)
         {
@@ -90,6 +91,7 @@ namespace Sitrac.Servidor.Controllers
             }
         }
 
+        [Authorize(Policy = TransaccionesCatalogo.ConfirmarAviso)]
         [HttpPost("{id}/confirmar-aviso")]
         public async Task<IActionResult> ConfirmarAviso(long id, [FromBody] ConfirmarAvisoSolicitud request)
         {
@@ -104,6 +106,7 @@ namespace Sitrac.Servidor.Controllers
             catch (Exception) { return StatusCode(500, new { Error = "Error interno." }); }
         }
 
+        [Authorize(Policy = TransaccionesCatalogo.RegistrarInforme)]
         [HttpPost("{id}/informe")]
         public async Task<IActionResult> RegistrarInforme(long id, [FromBody] RegistrarInformeSolicitud request)
         {
@@ -118,6 +121,7 @@ namespace Sitrac.Servidor.Controllers
             catch (Exception) { return StatusCode(500, new { Error = "Error interno." }); }
         }
 
+        [Authorize(Policy = TransaccionesCatalogo.CerrarIncidente)]
         [HttpPost("{id}/cerrar")]
         public async Task<IActionResult> CerrarIncidente(long id, [FromBody] CerrarIncidenteSolicitud request)
         {

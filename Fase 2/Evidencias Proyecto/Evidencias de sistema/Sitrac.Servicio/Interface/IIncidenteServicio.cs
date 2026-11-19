@@ -13,7 +13,6 @@ namespace Sitrac.Servicio.Interfaces
         Task<IncidenteDetalle?> ObtenerDetalleIncidenteAsync(long idIncidente);
         Task<IEnumerable<EventoHistorialResumen>> ObtenerHistorialIncidenteAsync(long idIncidente);
 
-        // Nuevos (Bloque B)
         Task ConfirmarAvisoAsync(long idIncidente, ConfirmarAvisoSolicitud request);
         Task RegistrarInformeAsync(long idIncidente, RegistrarInformeSolicitud request);
         Task CerrarIncidenteAsync(long idIncidente, CerrarIncidenteSolicitud request);

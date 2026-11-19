@@ -26,7 +26,7 @@ namespace Sitrac.Servicio.Helpers
             DateTime ahora)
         {
             var g = Math.Max(1, Math.Min(4, gravedad));
-            var cls = clasificacion == "OIV" ? 2 : 1; // Optimized: ordinal comparison (data is always exact match)
+            var cls = clasificacion == "OIV" ? 2 : 1;
             var urgencia = CalcularUrgencia(fechaLimite, fechaVencimiento, ahora);
             var hito = PesoDelHito(hitoCodigo);
 

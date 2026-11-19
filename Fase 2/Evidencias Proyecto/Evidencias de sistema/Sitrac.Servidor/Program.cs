@@ -30,6 +30,7 @@ builder.Services.Configure<ConfiguracionSmtp>(builder.Configuration.GetSection(C
 builder.Services.Configure<ConfiguracionTeams>(builder.Configuration.GetSection(ConfiguracionTeams.SectionName));
 builder.Services.Configure<ConfiguracionFrontend>(builder.Configuration.GetSection(ConfiguracionFrontend.SectionName));
 builder.Services.Configure<ConfiguracionJwt>(builder.Configuration.GetSection(ConfiguracionJwt.SectionName));
+builder.Services.Configure<ConfiguracionSeguridad>(builder.Configuration.GetSection(ConfiguracionSeguridad.SectionName));
 
 // Dependency Injection
 builder.Services.AddSingleton<IFabricaConexionBd, FabricaConexionBd>();
@@ -42,6 +43,8 @@ builder.Services.AddScoped<IReglaEscalamientoRepositorio, ReglaEscalamientoRepos
 builder.Services.AddScoped<IRegistroNotificacionRepositorio, RegistroNotificacionRepositorio>();
 builder.Services.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
 builder.Services.AddScoped<IAutenticacionServicio, AutenticacionServicio>();
+builder.Services.AddScoped<ISeguridadRepositorio, SeguridadRepositorio>();
+builder.Services.AddScoped<ISeguridadServicio, SeguridadServicio>();
 
 builder.Services.AddHostedService<AvanzadorCicloVidaServicio>();
 builder.Services.AddHostedService<DespachadorNotificacionServicio>();

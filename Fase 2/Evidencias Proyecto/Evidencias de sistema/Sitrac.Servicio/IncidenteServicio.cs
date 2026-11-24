@@ -19,7 +19,7 @@ namespace Sitrac.Servicio
         private readonly INotificacionServicio _notificacionService;
         private readonly IRegistroNotificacionRepositorio _notificacionLogRepository;
         private readonly IHitoRepositorio _hitoRepository;
-        private readonly ConfiguracionSmtp _smtpSettings;
+        private readonly ConfiguracionGraph _graphSettings;
         private readonly ConfiguracionTeams _teamsSettings;
         private readonly ILogger<IncidenteServicio> _logger;
 
@@ -29,7 +29,7 @@ namespace Sitrac.Servicio
             INotificacionServicio notificacionService,
             IRegistroNotificacionRepositorio notificacionLogRepository,
             IHitoRepositorio hitoRepository,
-            IOptions<ConfiguracionSmtp> smtpSettings,
+            IOptions<ConfiguracionGraph> graphSettings,
             IOptions<ConfiguracionTeams> teamsSettings,
             ILogger<IncidenteServicio> logger)
         {
@@ -38,7 +38,7 @@ namespace Sitrac.Servicio
             _notificacionService = notificacionService;
             _notificacionLogRepository = notificacionLogRepository;
             _hitoRepository = hitoRepository;
-            _smtpSettings = smtpSettings.Value;
+            _graphSettings = graphSettings.Value;
             _teamsSettings = teamsSettings.Value;
             _logger = logger;
         }
@@ -86,6 +86,7 @@ namespace Sitrac.Servicio
                 Estado = "Pendiente"
             };
             var idHitoAviso = await _hitoRepository.CrearAsync(hitoAviso);
+            var horasAvisoTemprano = Math.Max(0, (int)Math.Ceiling((hitoAviso.FechaLimite - request.FechaTomaConocimiento).TotalHours));
 
             string ticketStr = request.CodigoTicketInvgate ?? $"INC-{idGenerado}";
 
@@ -103,7 +104,27 @@ namespace Sitrac.Servicio
             if (score >= 30)
             {
                 _logger.LogInformation("[IncidenteServicio][Router] Evento: EnvioInmediato Ticket: {Ticket} Score: {Score}", ticketStr, score);
-                await _notificacionService.EnviarAlertaNuevoIncidenteAsync(idGenerado, _smtpSettings.DestinatarioDemo, ticketStr, request.DescripcionSistemaAfectado, 3);
+                var resultadoCorreo = await _notificacionService.EnviarAlertaNuevoIncidenteAsync(idGenerado, _graphSettings.DestinatarioCorreo, ticketStr, request.DescripcionSistemaAfectado, horasAvisoTemprano);
+
+                await _notificacionLogRepository.InsertarAsync(new NotificacionLog
+                {
+                    IdHito = idHitoAviso,
+                    NumeroNotificacion = 1,
+                    Destinatario = ticketStr,
+                    DestinatarioCorreo = resultadoCorreo.DestinatarioCorreo,
+                    ReferenciaTicket = ticketStr,
+                    IdMensajeProveedor = resultadoCorreo.IdMensajeProveedor,
+                    IdempotenciaKey = $"INC-{idGenerado}-HITO-{idHitoAviso}-CRITICO",
+                    Canal = "Email",
+                    Estado = resultadoCorreo.Exito ? "Enviada" : "Pendiente",
+                    Intentos = resultadoCorreo.Exito ? 1 : 0,
+                    ProximoReintentoAt = resultadoCorreo.Exito ? null : DateTime.UtcNow.AddSeconds(30),
+                    FechaProgramada = DateTime.UtcNow,
+                    FechaEnvio = resultadoCorreo.Exito ? DateTime.UtcNow : null,
+                    MensajeError = Truncar(resultadoCorreo.MensajeError, 500)
+                });
+
+                _logger.LogInformation("[IncidenteServicio][Auditoria] Evento: ResultadoCorreoCritico Ticket: {Ticket} Exito: {Exito} Destinatarios: {Destinatarios}", ticketStr, resultadoCorreo.Exito, resultadoCorreo.DestinatarioCorreo);
                 await _notificacionService.EnviarAlertaTeamsAsync(idGenerado, ticketStr, request.DescripcionSistemaAfectado, (int)request.CodTipoGravedad, clasificacionStr, "En triage", score, "Aviso Temprano", "Nuevo incidente crítico");
             }
             else
@@ -115,6 +136,12 @@ namespace Sitrac.Servicio
             return idGenerado;
         }
 
+        private static string? Truncar(string? valor, int longitudMaxima)
+        {
+            if (string.IsNullOrEmpty(valor) || valor.Length <= longitudMaxima) return valor;
+            return valor.Substring(0, longitudMaxima);
+        }
+
         private async Task EncolarNotificacionAsync(long idHito, string canal, string ticketId, DateTime fechaProgramada)
         {
             var log = new NotificacionLog
@@ -122,6 +149,7 @@ namespace Sitrac.Servicio
                 IdHito = idHito,
                 NumeroNotificacion = 1,
                 Destinatario = ticketId,
+                ReferenciaTicket = ticketId,
                 Canal = canal,
                 Estado = "Pendiente",
                 FechaProgramada = fechaProgramada

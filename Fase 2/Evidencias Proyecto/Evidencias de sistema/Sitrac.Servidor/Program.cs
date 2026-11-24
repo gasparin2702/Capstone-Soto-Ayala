@@ -28,7 +28,7 @@ if (builder.Environment.IsDevelopment())
 }
 
 // Options
-builder.Services.Configure<ConfiguracionSmtp>(builder.Configuration.GetSection(ConfiguracionSmtp.SectionName));
+builder.Services.Configure<ConfiguracionGraph>(builder.Configuration.GetSection(ConfiguracionGraph.SectionName));
 builder.Services.Configure<ConfiguracionTeams>(builder.Configuration.GetSection(ConfiguracionTeams.SectionName));
 builder.Services.Configure<ConfiguracionFrontend>(builder.Configuration.GetSection(ConfiguracionFrontend.SectionName));
 builder.Services.Configure<ConfiguracionJwt>(builder.Configuration.GetSection(ConfiguracionJwt.SectionName));
@@ -43,6 +43,7 @@ builder.Services.AddScoped<INotificacionServicio, NotificacionServicio>();
 builder.Services.AddScoped<IHitoRepositorio, HitoRepositorio>();
 builder.Services.AddScoped<IReglaEscalamientoRepositorio, ReglaEscalamientoRepositorio>();
 builder.Services.AddScoped<IRegistroNotificacionRepositorio, RegistroNotificacionRepositorio>();
+builder.Services.AddScoped<IResponsableRepositorio, ResponsableRepositorio>();
 builder.Services.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
 builder.Services.AddScoped<IAutenticacionServicio, AutenticacionServicio>();
 builder.Services.AddScoped<ISeguridadRepositorio, SeguridadRepositorio>();
@@ -54,7 +55,9 @@ builder.Services.AddHostedService<EscalamientoSlaServicio>();
 
 // Autenticación JWT
 var jwtSettings = builder.Configuration.GetSection(ConfiguracionJwt.SectionName).Get<ConfiguracionJwt>();
-var key = Encoding.ASCII.GetBytes(jwtSettings?.SecretKey ?? "ClavePorDefectoDeDesarrollo2026");
+if (jwtSettings == null || string.IsNullOrWhiteSpace(jwtSettings.SecretKey))
+    throw new InvalidOperationException("JwtSettings:SecretKey no está configurado.");
+var key = Encoding.ASCII.GetBytes(jwtSettings.SecretKey);
 
 builder.Services.AddAuthentication(x =>
 {
@@ -122,12 +125,22 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS Estricto
+var frontendSettings = builder.Configuration.GetSection(ConfiguracionFrontend.SectionName).Get<ConfiguracionFrontend>() ?? new ConfiguracionFrontend();
+var origenesPermitidos = (frontendSettings.AllowedOrigins ?? Array.Empty<string>())
+    .Where(origen => !string.IsNullOrWhiteSpace(origen))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
+if (origenesPermitidos.Length == 0)
+{
+    origenesPermitidos = new[] { "http://localhost:5500", "http://127.0.0.1:5500" };
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SitracPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500")
+        policy.WithOrigins(origenesPermitidos)
               .AllowAnyMethod()
               .AllowAnyHeader();
     });

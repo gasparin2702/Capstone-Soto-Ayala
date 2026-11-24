@@ -1,6 +1,6 @@
-@Sitrac.Servidor_HostAddress = http://localhost:5116
+@Sitrac.Servidor_HostAddress = http://127.0.0.1:5117
 
-GET {{Sitrac.Servidor_HostAddress}}/weatherforecast/
-Accept: application/json
+GET {{Sitrac.Servidor_HostAddress}}/swagger/index.html
+Accept: text/html
 
 ###

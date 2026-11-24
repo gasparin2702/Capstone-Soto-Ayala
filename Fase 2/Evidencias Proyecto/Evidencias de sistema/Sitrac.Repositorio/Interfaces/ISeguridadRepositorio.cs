@@ -10,6 +10,7 @@ namespace Sitrac.Repositorio.Interfaces
         Task<IEnumerable<string>> ObtenerRolesPorUsuarioAsync(long idUsuario);
         Task<bool> UsuarioTieneTransaccionAsync(long idUsuario, string codigoTransaccion);
         Task<bool> ExisteUsuarioConRolAsync(string nombreRol);
+        Task<bool> ExisteRolActivoAsync(string nombreRol);
         Task AsignarRolAUsuarioAsync(long idUsuario, string nombreRol);
     }
 }

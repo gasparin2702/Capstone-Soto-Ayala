@@ -111,6 +111,20 @@ namespace Sitrac.Repositorio
             return await connection.ExecuteScalarAsync<bool>(sql, new { NombreRol = nombreRol });
         }
 
+        public async Task<bool> ExisteRolActivoAsync(string nombreRol)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            const string sql = @"
+                SELECT CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM TbSitracRol
+                    WHERE NombreRol = @NombreRol
+                      AND AuditNotDeleted = 1
+                ) THEN 1 ELSE 0 END";
+
+            return await connection.ExecuteScalarAsync<bool>(sql, new { NombreRol = nombreRol });
+        }
+
         public async Task AsignarRolAUsuarioAsync(long idUsuario, string nombreRol)
         {
             using var connection = _connectionFactory.CreateConnection();

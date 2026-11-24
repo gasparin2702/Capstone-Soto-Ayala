@@ -2,7 +2,7 @@
 
 **Sistema de Trazabilidad y Notificación Automática de Incidentes de Ciberseguridad a la ANCI**
 
-[![Estado](https://img.shields.io/badge/estado-Fase%202%20en%20desarrollo-yellow)](#información-adicional)
+[![Estado](https://img.shields.io/badge/estado-Listo%20para%20UltraPort-brightgreen)](#información-adicional)
 [![Metodología](https://img.shields.io/badge/metodolog%C3%ADa-Scrum-blue)](#5-metodología-de-trabajo)
 [![Normativa](https://img.shields.io/badge/normativa-Ley%2021.663-orange)](#1-descripción-del-proyecto)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4)](#2-tecnologías-utilizadas)
@@ -35,11 +35,11 @@
 - **Backend:** ASP.NET Core Web API (controladores), JWT Bearer, rate limiting, CORS
 - **Acceso a datos:** Dapper + `Microsoft.Data.SqlClient` (SQL parametrizado, transacciones)
 - **Base de datos:** SQL Server
-- **Migraciones:** EvolveDB (scripts versionados `V0001`–`V0007`, ejecutados al iniciar la API)
-- **Notificaciones:** MailKit/MimeKit (SMTP) y Microsoft Teams (Incoming Webhook + Adaptive Cards)
+- **Migraciones:** EvolveDB (scripts versionados `V0001`–`V0011`, ejecutados al iniciar la API)
+- **Notificaciones:** Microsoft Graph SDK `6.10.0` + Azure.Identity `1.21.0` (App-Only `POST /users/{RemitenteUpn}/sendMail`) y Microsoft Teams (Incoming Webhook + Adaptive Cards); sin SMTP ni capturadores de correo locales
 - **Procesamiento en segundo plano:** `BackgroundService` + `PeriodicTimer` (ciclo de vida, Outbox, escalamiento SLA)
 - **Frontend:** interfaz web estática (`Sitrac.Frontend`, HTML/CSS/JS, sin bundler)
-- **Infraestructura local:** Docker / Docker Compose (SQL Server 2022, smtp4dev, API)
+- **Infraestructura local:** Docker / Docker Compose (SQL Server 2022, API)
 
 > **Nota sobre .NET:** el proyecto apunta a **.NET 10** (`net10.0`) y el SDK se fija en `global.json` a `10.0.400` (`rollForward: latestFeature`).
 
@@ -51,9 +51,10 @@
 | `Sitrac.Servicio/` | Reglas de negocio, cálculo de prioridad, ciclo de vida, notificaciones y servicios en segundo plano |
 | `Sitrac.Repositorio/` | Modelos y repositorios Dapper (incidentes, hitos, SLA, outbox, escalamiento, usuarios) |
 | `Sitrac.AccesoDatos/` | Fábrica de conexiones a SQL Server |
-| `Sitrac.MigracionBd/Scripts/` | Migraciones SQL versionadas (`V0001`–`V0007`) |
+| `Sitrac.MigracionBd/Scripts/` | Migraciones SQL versionadas (`V0001`–`V0011`) |
 | `Sitrac.Frontend/` | Consola web (login y gestión operativa) |
-| `docker-compose.yml` | Stack local: SQL Server, smtp4dev y API |
+| `.env.example` | Plantilla de variables de entorno para SQL Server, JWT, webhook, Graph, Teams, frontend y bootstrap |
+| `docker-compose.yml` | Stack local: SQL Server y API, sin secretos versionados |
 | `Sitrac.dockerfile` | Imagen multi-stage de la API |
 
 ## 4. Instrucciones para ejecutar el proyecto localmente
@@ -62,13 +63,17 @@
 
 - SDK de .NET 10 (según `global.json`)
 - SQL Server (local/Docker) o Docker Desktop para el stack completo
-- Servidor estático para el frontend en el puerto `5500` (CORS permitido solo para `http://localhost:5500` y `http://127.0.0.1:5500`)
+- Servidor estático para el frontend en el puerto `5500` (CORS configurable mediante `FrontendSettings:AllowedOrigins`)
 
 ### Opción A: Docker Compose (recomendada para desarrollo)
 
 ```bash
 # Desde la raíz del repositorio
-docker compose up --build
+cp .env.example .env
+# Completar los secretos y URLs de UltraPort en .env
+docker compose up --build -d
+docker compose ps
+docker compose logs -f sitrac-api
 ```
 
 Servicios expuestos:
@@ -76,10 +81,11 @@ Servicios expuestos:
 | Servicio | URL / puerto |
 | --- | --- |
 | API SITRAC | `http://127.0.0.1:5117` |
-| SQL Server | `localhost:1433` (sa / `Sitrac2026!Strong`) |
-| smtp4dev (captura de correo) | `http://localhost:5000` |
+| SQL Server | `localhost:1433` (credenciales definidas en `.env`) |
 
 La API ejecuta automáticamente las migraciones Evolve al iniciar y crea la base `DbSitrac` si no existe.
+
+Todos los secretos se entregan por `.env`/variables de entorno (o user-secrets si se ejecuta fuera de Docker). No deben escribirse en archivos versionados. Las credenciales de Microsoft Graph usan variables `GraphConfig__*`. `GraphConfig:DestinatarioCorreo` es opcional: si está vacío, se usan los delegados activos de `TbSitracResponsable`.
 
 ### Opción B: Ejecución local con .NET
 
@@ -92,16 +98,17 @@ dotnet build Sitrac.sln
 #    - ConnectionStrings:SitracConnection
 #    - JwtSettings (SecretKey, Issuer, Audience)
 #    - WebhookApiKey
-#    - SmtpConfig / TeamsConfig / FrontendSettings
+#    - GraphConfig / TeamsConfig / FrontendSettings
 #    Recomendado: user-secrets o variables de entorno (no commitear secretos)
 
-# 3. Ejecutar la API
-dotnet run --project Sitrac.Servidor/Sitrac.Servidor.csproj --launch-profile http
+# 3. Ejecutar la API desde la carpeta del servidor
+cd Sitrac.Servidor
+dotnet run --launch-profile http
 ```
 
 - La API escucha por defecto en `http://127.0.0.1:5117` (perfil `http`).
 - En entorno Development se habilita Swagger en `/swagger`.
-- Las migraciones se aplican al iniciar desde `../Sitrac.MigracionBd/Scripts` relativo al proyecto servidor.
+- Ejecute desde `Sitrac.Servidor/`: `Program.cs` busca los scripts de Evolve en `../Sitrac.MigracionBd/Scripts`, relativo al directorio de trabajo. Cambiar el CWD rompe el arranque de migraciones.
 
 ### Frontend
 
@@ -111,9 +118,10 @@ npx serve Sitrac.Frontend -l 5500
 # o VS Code Live Server en puerto 5500
 ```
 
-- Login: `http://localhost:5500/login.html`
-- Consola: `http://localhost:5500/index.html`
+- Login: `http://127.0.0.1:5500/login.html`
+- Consola: `http://127.0.0.1:5500/index.html`
 - La URL base de la API tiene una única fuente en `Sitrac.Frontend/js/api.js` (`http://127.0.0.1:5117/api`). `login.js` reutiliza `SitracAPI.login`. Puede sobreescribirse con `window.SITRAC_API_BASE_URL` antes de cargar los módulos.
+- Para un despliegue en UltraPort, copiar `Sitrac.Frontend/js/config.example.js` a `js/config.js`; los include opcionales ya están preparados en `login.html` e `index.html`.
 
 ## 5. Metodología de trabajo
 
@@ -127,7 +135,7 @@ La evidencia de gestión Scrum se encuentra en [`Fase 2/Evidencias Proyecto/Evid
 
 ## 6. Arquitectura de la solución
 
-Backend por capas en .NET 10, con SQL Server y migraciones Evolve:
+Backend por capas en .NET 10, con SQL Server y migraciones Evolve. El detalle está en [ARCHITECTURE.md](ARCHITECTURE.md) y la guía funcional de transacciones en [TRANSACCIONES.md](TRANSACCIONES.md):
 
 ```mermaid
 flowchart LR
@@ -138,8 +146,8 @@ flowchart LR
     C --> D[Sitrac.Repositorio<br/>Dapper]
     D --> E[Sitrac.AccesoDatos<br/>conexión]
     E --> F[(SQL Server DbSitrac)]
-    G[Sitrac.MigracionBd<br/>Evolve V0001-V0007] -->|al iniciar API| F
-    C -->|SMTP / Teams| I[Responsables]
+    G[Sitrac.MigracionBd<br/>Evolve V0001-V0011] -->|al iniciar API| F
+    C -->|Microsoft Graph / Teams| I[Responsables]
 ```
 
 | Proyecto | Responsabilidad |
@@ -164,26 +172,30 @@ flowchart LR
 | Método | Ruta | Auth | Descripción |
 | --- | --- | --- | --- |
 | `POST` | `/api/Auth/login` | No | Autenticación y emisión de JWT |
-| `POST` | `/api/Auth/register` | No | Registro de usuario (bootstrap/desarrollo; crea perfil Admin) |
+| `POST` | `/api/Auth/bootstrap` | No (un solo uso) | Crea el administrador inicial; responde `403` si está deshabilitado y `409` si ya existe |
+| `POST` | `/api/Auth/register` | `SITR_AUTE_REGISTRAR_USUARIO` | Registro de usuario; asigna `NombreRol` cuando se informa |
 | `POST` | `/api/Incidentes/invgate/webhook` | `X-Api-Key` | Recepción de incidentes desde INVGATE |
-| `GET` | `/api/Incidentes` | JWT | Lista incidentes activos |
-| `GET` | `/api/Incidentes/{id}` | JWT | Detalle de incidente |
-| `GET` | `/api/Incidentes/{id}/historial` | JWT | Historial de eventos |
-| `POST` | `/api/Incidentes/{id}/confirmar-aviso` | JWT | Confirma aviso temprano y crea hito de informe preliminar |
-| `POST` | `/api/Incidentes/{id}/informe` | JWT | Registra informe preliminar (`P`) o final (`F`) |
-| `POST` | `/api/Incidentes/{id}/cerrar` | JWT | Cierra el incidente (requiere informe final registrado) |
+| `GET` | `/api/Incidentes` | `SITR_INCI_CONSULTAR_INCIDENTES` | Lista incidentes activos |
+| `GET` | `/api/Incidentes/{id}` | `SITR_INCI_CONSULTAR_INCIDENTE` | Detalle de incidente |
+| `GET` | `/api/Incidentes/{id}/historial` | `SITR_INCI_CONSULTAR_HISTORIAL` | Historial de eventos |
+| `POST` | `/api/Incidentes/{id}/confirmar-aviso` | `SITR_INCI_CONFIRMAR_AVISO` | Confirma aviso temprano y crea hito de informe preliminar |
+| `POST` | `/api/Incidentes/{id}/informe` | `SITR_INCI_REGISTRAR_INFORME` | Registra informe preliminar (`P`) o final (`F`) |
+| `POST` | `/api/Incidentes/{id}/cerrar` | `SITR_INCI_CERRAR_INCIDENTE` | Cierra el incidente (requiere informe final registrado) |
 
 ### Seguridad y configuración relevante
 
 - **JWT Bearer** para endpoints protegidos (`JwtSettings`).
+- **Autorización por transacciones:** 9 códigos `SITR_*`, claim `transaccion` por código y policies generadas desde `TransaccionesCatalogo`; se controla con `Seguridad:HabilitarAutorizacionPorTransaccion`.
+- **Bootstrap** `/api/Auth/bootstrap`: anónimo y un solo uso; se habilita con `Seguridad:HabilitarBootstrap` y crea el usuario administrador inicial con rol `Administrador SITRAC`.
+- **Registro** `/api/Auth/register`: acepta `NombreRol`, valida que el rol esté activo y lo asigna; si se omite, requiere asignación SQL explícita.
 - **Webhook INVGATE** validado por header `X-Api-Key` (`WebhookApiKey`).
 - **Rate limiting global:** 100 solicitudes/minuto por usuario o IP (429 al exceder).
-- **CORS:** origenes permitidos `http://localhost:5500` y `http://127.0.0.1:5500`.
-- **Notificaciones:** SMTP (`SmtpConfig`) y Teams (`TeamsConfig`, deshabilitado por defecto); incidentes críticos pueden notificarse de inmediato, el resto se consolida vía Outbox.
+- **CORS:** orígenes permitidos definidos en `FrontendSettings:AllowedOrigins`, con fallback local cuando el arreglo está vacío.
+- **Notificaciones:** Microsoft Graph (`GraphConfig`, App-Only `sendMail`) y Teams (`TeamsConfig`, deshabilitado por defecto); incidentes críticos pueden notificarse de inmediato, el resto se consolida vía Outbox con reintentos, separación por canal y trazabilidad de correo.
 
 ### Modelo de datos y migraciones
 
-Las migraciones Evolve (`V0001`–`V0007`) crean catálogos, tablas operativas, SLA, informes/revisiones, historial, hitos/escalamiento/outbox y autenticación de usuarios. No editar migraciones ya aplicadas; agregar una nueva versión para cambios posteriores.
+Las migraciones Evolve (`V0001`–`V0011`) crean catálogos, tablas operativas, SLA, informes/revisiones, historial, hitos/escalamiento/outbox, autenticación de usuarios y seguridad por transacciones (módulos, transacciones, perfiles y roles). V0010 agrega auditoría de correo e idempotencia al outbox; V0011 elimina automáticamente el usuario semilla inválido de `V0007` (`admin`, `IdUsuario = 1`) cuando conserva el hash placeholder o el hash original sembrado. No es necesario borrarlo a mano. No editar migraciones ya aplicadas; agregar `V0012` en adelante para cambios posteriores.
 
 ---
 
@@ -193,22 +205,31 @@ Las migraciones Evolve (`V0001`–`V0007`) crean catálogos, tablas operativas, 
 
 | Componente | Estado |
 | --- | --- |
-| Modelo de datos y migraciones `V0001`–`V0007` | ✅ |
-| Backend por capas (.NET 10), webhook INVGATE con API key | ✅ |
-| Cálculo de prioridad y snapshot de plazos SLA | ✅ |
-| Hitos, historial y avance automático de ciclo de vida | ✅ |
-| Notificaciones SMTP/Teams, Outbox y escalamiento SLA | ✅ |
-| Autenticación JWT y login frontend | ✅ Implementado (pendiente hardening para producción) |
-| Frontend operativo (login, cola, detalle, acciones) | 🚧 En desarrollo |
-| Integración completa con API/credenciales reales de INVGATE | ⏳ Pendiente |
+| Modelo de datos y migraciones `V0001`–`V0011` (incluye limpieza automática de V0011) | ✅ Completado |
+| Backend por capas (.NET 10), webhook INVGATE con API key | ✅ Completado |
+| Cálculo de prioridad y snapshot de plazos SLA (Ley N° 21.663) | ✅ Completado |
+| Hitos, historial y avance automático de ciclo de vida | ✅ Completado |
+| Correo Microsoft Graph App-Only (`sendMail`) con Azure.Identity | ✅ Completado (credenciales UltraPort pendientes de entrega) |
+| Resolución de destinatarios desde `TbSitracResponsable` cuando `DestinatarioCorreo` está vacío | ✅ Completado |
+| Outbox con idempotencia, reintentos, separación por canal y trazabilidad | ✅ Completado |
+| Notificaciones Teams y escalamiento SLA | ✅ Completado (Teams deshabilitado por defecto) |
+| Autenticación JWT y autorización por 9 transacciones `SITR_*` | ✅ Completado (hardening de producción pendiente) |
+| Control de bootstrap con `Seguridad:HabilitarBootstrap` | ✅ Completado |
+| Asignación opcional de `NombreRol` en `/api/Auth/register` | ✅ Completado |
+| Frontend con URL base configurable (`config.example.js` → `config.js`) | ✅ Completado |
+| CORS configurable vía `FrontendSettings:AllowedOrigins` | ✅ Completado |
+| `.env.example` + Docker Compose sin secretos versionados | ✅ Completado |
+| Runbook de entrega [`TRASPASO_ULTRAPORT.md`](TRASPASO_ULTRAPORT.md) | ✅ Completado |
+| Despliegue con credenciales reales de INVGATE / Graph | ⏳ Pendiente de UltraPort |
 | Falso positivo, revisión de datos personales y canales adicionales | ⏳ Pendiente |
 
 ### Alcances y limitaciones conocidas
 
 - MVP acotado al flujo principal de trazabilidad/notificación dentro del periodo CAPSTONE.
-- `POST /api/Auth/register` es un endpoint de bootstrap sin protección y crea usuarios `Admin`; debe restringirse/eliminarse para producción.
-- El hash sembrado del usuario `admin` en `V0007` es un placeholder no válido para login PBKDF2 real.
-- Las URLs de API en frontend y los orígenes CORS están fijados a entorno local; requieren parametrización para despliegue.
+- `POST /api/Auth/bootstrap` es anónimo y de un solo uso; configurar `Seguridad:HabilitarBootstrap = false` después del despliegue inicial.
+- `POST /api/Auth/register` exige la transacción `SITR_AUTE_REGISTRAR_USUARIO`; crea usuarios con `Rol = "Admin"` legacy y asigna el rol indicado en `NombreRol`. Si se omite, requiere asignación SQL explícita.
+- V0011 elimina automáticamente el usuario semilla `admin` (`IdUsuario = 1`) de `V0007` si conserva el hash placeholder o el hash original sembrado; no ejecutar `DELETE` manuales. Si la BD ya estaba migrada, verificar con el `SELECT` descrito en [`MANUAL.md`](MANUAL.md) antes del bootstrap.
+- Las URLs de API en frontend y los orígenes CORS son parametrizables mediante `window.SITRAC_API_BASE_URL` y `FrontendSettings:AllowedOrigins`.
 - La integración con INVGATE depende de credenciales/configuración del mandante.
 - El repositorio no incluye suite de pruebas automatizadas; la verificación actual es build + pruebas manuales.
 
@@ -224,6 +245,9 @@ Las migraciones Evolve (`V0001`–`V0007`) crean catálogos, tablas operativas, 
 
 ### Referencias
 
+- [`TRASPASO_ULTRAPORT.md`](TRASPASO_ULTRAPORT.md): guía ejecutiva de implementación, variables de entorno, despliegue, integración INVGATE y verificación post-puesta en marcha.
+- [`MANUAL.md`](MANUAL.md): instalación, configuración, bootstrap, usuarios, frontend y troubleshooting.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md), [`TRANSACCIONES.md`](TRANSACCIONES.md) y [`test.md`](test.md): detalle técnico, seguridad y pruebas T01–T22.
 - Ministerio del Interior y Seguridad Pública. (2024, 8 de abril). *Ley 21.663: Ley marco de ciberseguridad e infraestructura crítica de la información*. https://www.bcn.cl/leychile/navegar?idNorma=1202434
 - Agencia Nacional de Ciberseguridad. (s.f.). *ANCI*. https://www.anci.gob.cl/
 - Schwaber, K., & Sutherland, J. (2020). *The Scrum Guide*. https://scrumguides.org/

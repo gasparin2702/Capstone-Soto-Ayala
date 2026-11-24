@@ -9,6 +9,8 @@ namespace Sitrac.Servicio.Interfaces
         Task<IEnumerable<string>> ObtenerTransaccionesAsync(long idUsuario);
         Task<IEnumerable<string>> ObtenerRolesAsync(long idUsuario);
         Task<bool> ExisteAdministradorInicialAsync();
+        Task<bool> ExisteRolActivoAsync(string nombreRol);
+        Task AsignarRolAUsuarioAsync(long idUsuario, string nombreRol);
         Task AsignarAdministradorAsync(long idUsuario);
     }
 }

@@ -36,6 +36,16 @@ namespace Sitrac.Servicio
             return _seguridadRepositorio.ExisteUsuarioConRolAsync(RolAdministrador);
         }
 
+        public Task<bool> ExisteRolActivoAsync(string nombreRol)
+        {
+            return _seguridadRepositorio.ExisteRolActivoAsync(nombreRol);
+        }
+
+        public Task AsignarRolAUsuarioAsync(long idUsuario, string nombreRol)
+        {
+            return _seguridadRepositorio.AsignarRolAUsuarioAsync(idUsuario, nombreRol);
+        }
+
         public Task AsignarAdministradorAsync(long idUsuario)
         {
             return _seguridadRepositorio.AsignarRolAUsuarioAsync(idUsuario, RolAdministrador);

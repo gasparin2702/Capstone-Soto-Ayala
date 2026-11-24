@@ -28,8 +28,10 @@ namespace Sitrac.Servidor.Controllers
         public async Task<IActionResult> RecepcionarTicketInvgate([FromBody] CrearIncidenteSolicitud request)
         {
             // Validación de API Key (Seguridad)
-            var apiKeyEsperada = _configuration["WebhookApiKey"] ?? "SITRAC_INVGATE_SECRET_2026";
-            if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey) || apiKey != apiKeyEsperada)
+            var apiKeyEsperada = _configuration["WebhookApiKey"];
+            if (string.IsNullOrWhiteSpace(apiKeyEsperada) ||
+                !Request.Headers.TryGetValue("X-Api-Key", out var apiKey) ||
+                apiKey != apiKeyEsperada)
             {
                 return Unauthorized(new { Error = "API Key inválida o ausente." });
             }

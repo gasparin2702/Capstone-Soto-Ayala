@@ -23,7 +23,7 @@ WORKDIR /app
 # Puerto por defecto (el compose también lo pasa por env var)
 ENV ASPNETCORE_URLS=http://+:8080
 
-# 3) Binarios publicados (incluye appsettings*.json, MailKit, Evolve, etc.)
+# 3) Binarios publicados (incluye appsettings*.json, Microsoft Graph, Evolve, etc.)
 COPY --from=build /app/publish .
 
 # 4) Scripts de Evolve

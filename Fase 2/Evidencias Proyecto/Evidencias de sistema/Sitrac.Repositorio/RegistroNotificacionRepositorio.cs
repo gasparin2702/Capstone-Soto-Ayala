@@ -22,10 +22,12 @@ namespace Sitrac.Repositorio
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 INSERT INTO TbSitracNotificacionLog (
-                    IdHito, NumeroNotificacion, Destinatario, Canal, IdRegla, Estado,
+                    IdHito, NumeroNotificacion, Destinatario, DestinatarioCorreo, ReferenciaTicket,
+                    IdMensajeProveedor, IdempotenciaKey, Canal, IdRegla, Estado,
                     Intentos, ProximoReintentoAt, FechaProgramada
                 ) VALUES (
-                    @IdHito, @NumeroNotificacion, @Destinatario, @Canal, @IdRegla, @Estado,
+                    @IdHito, @NumeroNotificacion, @Destinatario, @DestinatarioCorreo, @ReferenciaTicket,
+                    @IdMensajeProveedor, @IdempotenciaKey, @Canal, @IdRegla, @Estado,
                     @Intentos, @ProximoReintentoAt, @FechaProgramada
                 )";
 
@@ -37,22 +39,25 @@ namespace Sitrac.Repositorio
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 INSERT INTO TbSitracNotificacionLog (
-                    IdHito, NumeroNotificacion, Destinatario, Canal, IdRegla, Estado,
+                    IdHito, NumeroNotificacion, Destinatario, DestinatarioCorreo, ReferenciaTicket,
+                    IdMensajeProveedor, IdempotenciaKey, Canal, IdRegla, Estado,
                     Intentos, ProximoReintentoAt, FechaProgramada
                 ) VALUES (
-                    @IdHito, @NumeroNotificacion, @Destinatario, @Canal, @IdRegla, @Estado,
+                    @IdHito, @NumeroNotificacion, @Destinatario, @DestinatarioCorreo, @ReferenciaTicket,
+                    @IdMensajeProveedor, @IdempotenciaKey, @Canal, @IdRegla, @Estado,
                     @Intentos, @ProximoReintentoAt, @FechaProgramada
                 )";
 
             await connection.ExecuteAsync(sql, logs);
         }
 
-        public async Task<IEnumerable<NotificacionLog>> ObtenerPendientesParaEnvioAsync(int maximo)
+        public async Task<IEnumerable<NotificacionLog>> ObtenerPendientesParaEnvioAsync(int maximo, int maximoIntentos)
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 SELECT TOP (@Maximo)
-                    l.IdNotificacion, l.IdHito, l.NumeroNotificacion, l.Destinatario, l.Canal, l.IdRegla,
+                    l.IdNotificacion, l.IdHito, l.NumeroNotificacion, l.Destinatario, l.DestinatarioCorreo,
+                    l.ReferenciaTicket, l.IdMensajeProveedor, l.IdempotenciaKey, l.Canal, l.IdRegla,
                     l.Estado, l.Intentos, l.ProximoReintentoAt, l.FechaProgramada, l.FechaEnvio, l.MensajeError,
                     i.CodTipoGravedad, i.DescripcionSistemaAfectado AS SistemaAfectado
                 FROM TbSitracNotificacionLog l
@@ -61,34 +66,69 @@ namespace Sitrac.Repositorio
                 WHERE l.Estado = 'Pendiente'
                   AND l.AuditNotDeleted = 1
                   AND l.FechaProgramada <= GETUTCDATE()
-                ORDER BY l.FechaProgramada ASC";
+                  AND (l.ProximoReintentoAt IS NULL OR l.ProximoReintentoAt <= GETUTCDATE())
+                  AND l.Intentos < @MaximoIntentos
+                ORDER BY l.FechaProgramada ASC, l.IdNotificacion ASC";
 
-            return await connection.QueryAsync<NotificacionLog>(sql, new { Maximo = maximo });
+            return await connection.QueryAsync<NotificacionLog>(sql, new { Maximo = maximo, MaximoIntentos = maximoIntentos });
         }
 
-        public async Task MarcarEnviadaAsync(long idNotificacion, DateTime fechaEnvio)
+        public async Task MarcarEnviadaAsync(
+            long idNotificacion,
+            DateTime fechaEnvio,
+            string? destinatarioCorreo = null,
+            string? idMensajeProveedor = null,
+            string? referenciaTicket = null)
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
                 UPDATE TbSitracNotificacionLog
                 SET Estado = 'Enviada',
                     FechaEnvio = @FechaEnvio,
+                    DestinatarioCorreo = COALESCE(@DestinatarioCorreo, DestinatarioCorreo),
+                    IdMensajeProveedor = COALESCE(@IdMensajeProveedor, IdMensajeProveedor),
+                    ReferenciaTicket = COALESCE(@ReferenciaTicket, ReferenciaTicket),
                     Intentos = Intentos + 1,
+                    ProximoReintentoAt = NULL,
                     AuditLastUpdateDate = GETUTCDATE()
                 WHERE IdNotificacion = @IdNotificacion AND Estado = 'Pendiente'";
 
-            await connection.ExecuteAsync(sql, new { IdNotificacion = idNotificacion, FechaEnvio = fechaEnvio });
+            await connection.ExecuteAsync(sql, new
+            {
+                IdNotificacion = idNotificacion,
+                FechaEnvio = fechaEnvio,
+                DestinatarioCorreo = destinatarioCorreo,
+                IdMensajeProveedor = idMensajeProveedor,
+                ReferenciaTicket = referenciaTicket
+            });
         }
 
-        public async Task MarcarFallidaAsync(long idNotificacion, string mensajeError, DateTime? proximoReintento)
+        public async Task MarcarFallidaAsync(long idNotificacion, string mensajeError, int maximoIntentos, int retrasoBaseSegundos = 30)
         {
             using var connection = _connectionFactory.CreateConnection();
             const string sql = @"
+                DECLARE @IntentosActuales INT = 0;
+                DECLARE @NuevoIntentos INT;
+                DECLARE @Agotado BIT = 0;
+
+                SELECT @IntentosActuales = Intentos
+                FROM TbSitracNotificacionLog
+                WHERE IdNotificacion = @IdNotificacion AND Estado = 'Pendiente';
+
+                SET @NuevoIntentos = @IntentosActuales + 1;
+                SET @Agotado = CASE WHEN @NuevoIntentos >= @MaximoIntentos THEN 1 ELSE 0 END;
+
                 UPDATE TbSitracNotificacionLog
-                SET Estado = CASE WHEN Intentos + 1 >= 3 THEN 'Fallida' ELSE 'Pendiente' END,
-                    Intentos = Intentos + 1,
-                    MensajeError = @MensajeError,
-                    ProximoReintentoAt = @ProximoReintento,
+                SET Estado = CASE WHEN @Agotado = 1 THEN 'Fallida' ELSE 'Pendiente' END,
+                    Intentos = @NuevoIntentos,
+                    MensajeError = LEFT(@MensajeError, 500),
+                    ProximoReintentoAt = CASE
+                        WHEN @Agotado = 1 THEN NULL
+                        ELSE DATEADD(
+                            SECOND,
+                            CAST(@RetrasoBaseSegundos * POWER(CAST(2 AS FLOAT), @IntentosActuales) AS INT),
+                            GETUTCDATE())
+                    END,
                     AuditLastUpdateDate = GETUTCDATE()
                 WHERE IdNotificacion = @IdNotificacion AND Estado = 'Pendiente'";
 
@@ -96,8 +136,24 @@ namespace Sitrac.Repositorio
             {
                 IdNotificacion = idNotificacion,
                 MensajeError = mensajeError,
-                ProximoReintento = proximoReintento
+                MaximoIntentos = maximoIntentos,
+                RetrasoBaseSegundos = retrasoBaseSegundos
             });
+        }
+
+        public async Task MarcarCanceladaAsync(long idNotificacion, string motivo)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            const string sql = @"
+                UPDATE TbSitracNotificacionLog
+                SET Estado = 'Cancelada',
+                    MensajeError = LEFT(@Motivo, 500),
+                    ProximoReintentoAt = NULL,
+                    FechaEnvio = NULL,
+                    AuditLastUpdateDate = GETUTCDATE()
+                WHERE IdNotificacion = @IdNotificacion AND Estado = 'Pendiente'";
+
+            await connection.ExecuteAsync(sql, new { IdNotificacion = idNotificacion, Motivo = motivo });
         }
 
         public async Task CancelarPendientesPorHitoAsync(long idHito)

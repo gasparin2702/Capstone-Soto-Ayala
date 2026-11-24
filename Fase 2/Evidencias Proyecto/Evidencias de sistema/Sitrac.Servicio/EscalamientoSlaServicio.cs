@@ -64,35 +64,46 @@ namespace Sitrac.Servicio
 
                         if (reglaAplicable != null)
                         {
-                            // Intentar reservar (evita envíos duplicados)
-                            // Si la regla no tiene RepetirCadaMinutos (es un umbral único), la próxima notificación será nula
-                            DateTime proximaNotificacion = reglaAplicable.RepetirCadaMinutos.HasValue 
-                                ? ahoraUtc.AddMinutes(reglaAplicable.RepetirCadaMinutos.Value)
-                                : DateTime.MaxValue;
-
-                            bool reservado = await hitoRepo.ReservarNotificacionAsync(hito.IdHito, reglaAplicable.IdRegla, proximaNotificacion, ahoraUtc);
-
-                            if (reservado)
+                            var incidente = await incidenteRepo.ObtenerPorIdAsync(hito.IdIncidente);
+                            if (incidente != null)
                             {
-                                var incidente = await incidenteRepo.ObtenerPorIdAsync(hito.IdIncidente);
-                                if (incidente != null)
+                                var ticketStr = incidente.CodigoTicketInvgate ?? $"INC-{incidente.IdIncidente}";
+                                var clasificacion = incidente.CodTipoClasificacionEmpresa == 2 ? "OIV" : "Esencial";
+                                var hitoNombre = hito.CodTipoHito switch { 1 => "Aviso Temprano", 2 => "Informe Preliminar", 3 => "Informe Final", _ => "Hito" };
+
+                                var resultado = await notifService.EnviarAlertaEscalamientoAsync(
+                                    incidente.IdIncidente,
+                                    ticketStr,
+                                    incidente.DescripcionSistemaAfectado ?? "No especificado",
+                                    (int)incidente.CodTipoGravedad,
+                                    clasificacion,
+                                    hitoNombre,
+                                    reglaAplicable.Descripcion,
+                                    hito.FechaLimite,
+                                    remainingMins,
+                                    reglaAplicable.NotificarEmail,
+                                    reglaAplicable.NotificarTeams,
+                                    stoppingToken);
+
+                                if (!resultado.Exito)
                                 {
-                                    var ticketStr = incidente.CodigoTicketInvgate ?? $"INC-{incidente.IdIncidente}";
-                                    var clasificacion = incidente.CodTipoClasificacionEmpresa == 2 ? "OIV" : "Esencial";
-                                    var hitoNombre = hito.CodTipoHito switch { 1 => "Aviso Temprano", 2 => "Informe Preliminar", 3 => "Informe Final", _ => "Hito" };
+                                    _logger.LogWarning("[SlaEscalation] EnvioFallido Ticket: {Ticket} Regla: {Regla} Detalle: {Detalle}", ticketStr, reglaAplicable.IdRegla, resultado.MensajeError);
+                                    continue;
+                                }
 
-                                    await notifService.EnviarAlertaEscalamientoAsync(
-                                        incidente.IdIncidente,
-                                        ticketStr,
-                                        incidente.DescripcionSistemaAfectado ?? "No especificado",
-                                        (int)incidente.CodTipoGravedad,
-                                        clasificacion,
-                                        hitoNombre,
-                                        reglaAplicable.Descripcion,
-                                        hito.FechaLimite,
-                                        remainingMins);
+                                DateTime proximaNotificacion = reglaAplicable.RepetirCadaMinutos.HasValue
+                                    ? ahoraUtc.AddMinutes(reglaAplicable.RepetirCadaMinutos.Value)
+                                    : DateTime.MaxValue;
 
+                                bool reservado = await hitoRepo.ReservarNotificacionAsync(hito.IdHito, reglaAplicable.IdRegla, proximaNotificacion, ahoraUtc);
+
+                                if (reservado)
+                                {
                                     _logger.LogInformation("[SlaEscalation] Alerta Enviada Ticket: {Ticket} Regla: {Regla} Faltan: {Mins} min", ticketStr, reglaAplicable.IdRegla, Math.Round(remainingMins));
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("[SlaEscalation] ReservaRechazada Ticket: {Ticket} Regla: {Regla} Motivo: Ya existe una reserva vigente", ticketStr, reglaAplicable.IdRegla);
                                 }
                             }
                         }

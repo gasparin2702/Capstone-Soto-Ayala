@@ -21,6 +21,6 @@ namespace Sitrac.Servicio.Interfaces
         Task<ResultadoEnvio> EnviarAlertaEscalamientoAsync(
             long idIncidente, string ticketId, string sistema, int gravedad, string clasificacion, 
             string hitoNombre, string reglaDescripcion, DateTime fechaLimite, double minutosRestantes, 
-            CancellationToken cancellationToken = default);
+            bool notificarEmail = true, bool notificarTeams = true, CancellationToken cancellationToken = default);
     }
 }

@@ -8,6 +8,10 @@ namespace Sitrac.Repositorio.Models
         public long IdHito { get; set; }
         public int NumeroNotificacion { get; set; }
         public string Destinatario { get; set; } = string.Empty;
+        public string? DestinatarioCorreo { get; set; }
+        public string? ReferenciaTicket { get; set; }
+        public string? IdMensajeProveedor { get; set; }
+        public string? IdempotenciaKey { get; set; }
         public string Canal { get; set; } = "Email";
         public long? IdRegla { get; set; }
         public string Estado { get; set; } = "Pendiente";
